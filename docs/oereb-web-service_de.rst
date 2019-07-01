@@ -25,6 +25,8 @@ Konfiguration
 Via application.properties im Verzeichnis in dem der Service gestartet wird. Oder entsprechende alternative
 Konfigurationsmöglichkeiten von `Spring Boot <https://docs.spring.io/spring-boot/docs/current/reference/html/boot-features-external-config.html>`_.
 
+..code::
+	
   spring.datasource.url=jdbc:postgresql:DBNAME
   spring.datasource.username=DBUSR
   spring.datasource.password=DBPWD
