@@ -4,7 +4,10 @@
 	xmlns:gml="http://www.opengis.net/gml/3.2">
 	<bindings scd="x-schema::gml">
 		<schemaBindings>
-			<package name="ch.terravis.schemas.gml._3_2"/>
+			<package name="ch.ehi.oereb.schemas.gml._3_2"/>
+			  <nameXmlTransform>
+				<typeName suffix="Type"/>
+			  </nameXmlTransform>
 		</schemaBindings>
 			<jaxb:bindings scd="/group::gml:PointGrid/element::gml:rows">
 				<jaxb:property name="Arows" />

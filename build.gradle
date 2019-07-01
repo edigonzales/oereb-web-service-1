@@ -1,0 +1,182 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath("org.springframework.boot:spring-boot-gradle-plugin:2.1.4.RELEASE")
+    }
+}
+
+group 'ch.ehi.oereb'
+
+version '1.0.0'+System.getProperty('release','-SNAPSHOT')
+
+plugins {
+  id "java"
+  id 'org.springframework.boot'
+  id 'io.spring.dependency-management'
+  id "com.jfrog.bintray" version "1.7.3"
+  id "maven-publish"
+}
+
+sourceCompatibility = "1.8" 
+targetCompatibility = "1.8"
+compileJava.options.encoding = 'US-ASCII'
+
+
+// to get the latest SNAPSHOT uncomment the following lines
+//configurations.all {
+    // check for updates every build
+    // resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+//}
+
+configurations {
+    jaxb
+}
+
+Properties properties = new Properties()
+File propFile=project.rootProject.file('user.properties')
+if(propFile.exists()){
+	properties.load(propFile.newDataInputStream())
+}
+def git = System.getProperty('git',properties.get('git','git'))
+def repos_pwd = System.getProperty('repos_pwd',properties.get('repos_pwd','repos_pwd'))
+def repos_usr = System.getProperty('repos_usr',properties.get('repos_usr','repos_usr'))
+
+dependencies {
+    //compile group: 'org.slf4j', name: 'slf4j-api', version: "1.7.25"
+    //compile group: 'org.slf4j', name: 'slf4j-simple', version: "1.7.25"
+    //testCompile group: 'junit', name: 'junit', version: '4.12'
+	compile group: 'com.vividsolutions', name: 'jts-core', version: '1.14.0'
+	compile 'commons-io:commons-io:2.6'
+	compile ('ch.so.agi.oereb:pdf4oereb:1.0.16') {
+    	exclude group: 'org.slf4j', module: 'slf4j-simple'
+	}
+	compile group: 'org.postgresql', name: 'postgresql', version: '42.1.4.jre6' // add as compileOnly, so that eclipse sees it
+	compile	group: 'javax.xml.bind',name:'jaxb-api', version:'2.3.0'
+	compile	group: 'com.sun.xml.bind',name:'jaxb-core', version:'2.3.0'
+	compile	group: 'com.sun.xml.bind',name:'jaxb-impl', version:'2.3.0'
+	compile group: 'javax.activation', name: 'activation', version: '1.1.1'
+    compile("org.springframework.boot:spring-boot-starter-web")
+    compile("org.springframework.boot:spring-boot-starter-jdbc")
+    compile("org.springframework:spring-oxm")
+    testCompile('org.springframework.boot:spring-boot-starter-test')
+    jaxb (
+		'com.sun.xml.bind:jaxb-xjc:2.2.7',
+		'com.sun.xml.bind:jaxb-impl:2.2.7'
+    )
+}
+
+repositories {
+	mavenLocal()
+	mavenCentral()
+	jcenter()
+    maven {
+        url "http://jars.interlis.ch"
+    }
+}
+
+def generatedXjcSources = "$buildDir/xjc/java"
+
+Properties properties = new Properties()
+File propFile=project.rootProject.file('user.properties')
+if(propFile.exists()){
+	properties.load(propFile.newDataInputStream())
+}
+def git = System.getProperty('git',properties.get('git','git'))
+def repos_pwd = System.getProperty('repos_pwd',properties.get('repos_pwd','repos_pwd'))
+def repos_usr = System.getProperty('repos_usr',properties.get('repos_usr','repos_usr'))
+def python= System.getProperty('python',properties.get('python','python'))
+def rst2html= System.getProperty('rst2html',properties.get('rst2html','rst2html'))
+
+def generatedResources = "$buildDir/generated-resources/main"
+
+def getGitHash = { ->
+    def stdout = new ByteArrayOutputStream()
+    exec {
+        commandLine git, 'rev-parse', 'HEAD'
+        standardOutput = stdout
+    }
+    return stdout.toString().trim()
+}
+
+sourceSets {
+    main {
+    	//output.dir(generatedResources, builtBy: 'generateMyResources')
+        java {
+            srcDirs = ['src/main/java',"$generatedXjcSources"]
+        }
+    }
+}
+
+task generateMyResources {
+	doLast {
+		def versionProps = new Properties()
+		versionProps.setProperty('version', "$project.version")
+		versionProps.setProperty('versionCommit', getGitHash())
+		def versionPropsFile = new File(generatedResources,"ch/ehi/oereb/webservice/Version.properties")
+		versionPropsFile.getParentFile().mkdirs();
+		versionProps.store(versionPropsFile.newWriter(), null);
+	}
+}
+task jaxb {
+    System.setProperty('javax.xml.accessExternalSchema', 'all')
+    inputs.files fileTree(dir: 'src/main/xsd', include: ['*.xsd'])
+    inputs.files fileTree(dir: 'src/main/xjb', include: ['*.xjb'])
+    outputs.dir "$generatedXjcSources"
+    
+    doLast {
+        mkdir "$generatedXjcSources"
+
+        ant.taskdef(
+			name: 'xjc',
+			classname: 'com.sun.tools.xjc.XJCTask',
+			classpath: configurations.jaxb.asPath
+        )
+
+        ant.xjc(
+			destdir: "$generatedXjcSources",
+			language: 'XMLSCHEMA',
+			extension: true
+        ){
+            schema(dir: "src/main/xsd", includes: "OeREB/**/*.xsd,gml/3.2/gml.xsd")
+            binding(dir: "src/main/xjb", includes: "global.xjb,OeREB.xjb,xmldsig-core-schema.xjb,gml.xjb,iso-19139.xjb,xlink.xjb")
+            //arg(value: '-verbose')
+        }
+    }
+}
+compileJava.dependsOn jaxb
+
+task usrdoc(type:Exec) {
+	def infile=new File(project.projectDir,'docs/oereb-web-service_de.rst')
+	def outfile=new File('docs/oereb-web-service_de.html')
+	inputs.file infile
+	outputs.file outfile
+	doFirst{
+		new File(project.buildDir,'docs').mkdir()
+	}
+		workingDir = project.buildDir
+		executable python
+		args = [rst2html, infile, outfile]
+}
+
+bintray {
+	user = repos_usr
+	key = repos_pwd
+	publications = ['mavenPublication']
+	publish = true
+
+	pkg {
+		repo = 'oereb-web-service'
+		name = 'oereb-web-service'
+		userOrg = 'claeis'
+		licenses = ['LGPL-2.1']
+		vcsUrl = 'https://github.com/claeis/oereb-web-service.git'
+		version {
+            name = project.version
+            desc = project.version
+            released  = new Date()
+        }		
+	}
+
+}
