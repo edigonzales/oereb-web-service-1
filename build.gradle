@@ -2,22 +2,24 @@ buildscript {
     repositories {
         mavenCentral()
     }
-    dependencies {
-        classpath("org.springframework.boot:spring-boot-gradle-plugin:2.1.4.RELEASE")
-    }
+//    dependencies {
+//        classpath("org.springframework.boot:spring-boot-gradle-plugin:2.1.4.RELEASE")
+//    }
 }
-
-group 'ch.ehi.oereb'
-
-version '1.0.0'+System.getProperty('release','-SNAPSHOT')
 
 plugins {
   id "java"
-  id 'org.springframework.boot'
-  id 'io.spring.dependency-management'
-  id "com.jfrog.bintray" version "1.7.3"
+  id "com.jfrog.bintray" version "1.8.4" 
   id "maven-publish"
 }
+
+//apply plugin: 'org.springframework.boot'
+//apply plugin: 'io.spring.dependency-management'
+
+group 'ch.ehi.oereb'
+
+version '0.9.1'+System.getProperty('release','-SNAPSHOT')
+
 
 sourceCompatibility = "1.8" 
 targetCompatibility = "1.8"
@@ -34,15 +36,6 @@ configurations {
     jaxb
 }
 
-Properties properties = new Properties()
-File propFile=project.rootProject.file('user.properties')
-if(propFile.exists()){
-	properties.load(propFile.newDataInputStream())
-}
-def git = System.getProperty('git',properties.get('git','git'))
-def repos_pwd = System.getProperty('repos_pwd',properties.get('repos_pwd','repos_pwd'))
-def repos_usr = System.getProperty('repos_usr',properties.get('repos_usr','repos_usr'))
-
 dependencies {
     //compile group: 'org.slf4j', name: 'slf4j-api', version: "1.7.25"
     //compile group: 'org.slf4j', name: 'slf4j-simple', version: "1.7.25"
@@ -57,10 +50,10 @@ dependencies {
 	compile	group: 'com.sun.xml.bind',name:'jaxb-core', version:'2.3.0'
 	compile	group: 'com.sun.xml.bind',name:'jaxb-impl', version:'2.3.0'
 	compile group: 'javax.activation', name: 'activation', version: '1.1.1'
-    compile("org.springframework.boot:spring-boot-starter-web")
-    compile("org.springframework.boot:spring-boot-starter-jdbc")
-    compile("org.springframework:spring-oxm")
-    testCompile('org.springframework.boot:spring-boot-starter-test')
+    compile("org.springframework.boot:spring-boot-starter-web:2.1.4.RELEASE")
+    compile("org.springframework.boot:spring-boot-starter-jdbc:2.1.4.RELEASE")
+    compile("org.springframework:spring-oxm:5.1.6.RELEASE")
+    testCompile('org.springframework.boot:spring-boot-starter-test:2.1.4.RELEASE')
     jaxb (
 		'com.sun.xml.bind:jaxb-xjc:2.2.7',
 		'com.sun.xml.bind:jaxb-impl:2.2.7'
@@ -160,18 +153,84 @@ task usrdoc(type:Exec) {
 		args = [rst2html, infile, outfile]
 }
 
+
+
+// Bintray / jcenter
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+javadoc.failOnError = false
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+artifacts {
+    archives sourcesJar
+    archives javadocJar
+}
+
+def githubRepoUrl = 'https://github.com/claeis/oereb-web-service'
+
+def pomConfig = {
+    licenses {
+        license {
+            name "LGPL 2.1"
+            url "https://github.com/claeis/oereb-web-service/blob/master/LICENSE"
+        }
+    }
+    developers {
+        developer {
+            id "claeis"
+            name "Claude Eisenhut"
+            email "ce@eisenhutinformatik.ch"
+        }
+    }
+
+    scm {
+        url githubRepoUrl
+    }
+}
+
+publishing {
+    publications {
+        mavenPublication(MavenPublication) {
+            from components.java
+            artifact sourcesJar {
+                classifier "sources"
+            }
+            artifact javadocJar {
+                classifier "javadoc"
+            }
+            groupId project.group
+            artifactId project.name
+            version project.version
+            pom.withXml {
+                def root = asNode()
+                root.appendNode('description', 'A cadastre of public-law restrictions on landownership web service')
+                root.appendNode('name', project.name)
+                root.appendNode('url', githubRepoUrl)
+                root.children().last() + pomConfig
+            }
+        }
+    }
+}
+
+
 bintray {
 	user = repos_usr
 	key = repos_pwd
 	publications = ['mavenPublication']
-	publish = true
+	//publish = true
 
 	pkg {
 		repo = 'oereb-web-service'
 		name = 'oereb-web-service'
 		userOrg = 'claeis'
 		licenses = ['LGPL-2.1']
-		vcsUrl = 'https://github.com/claeis/oereb-web-service.git'
+		vcsUrl = githubRepoUrl
 		version {
             name = project.version
             desc = project.version
