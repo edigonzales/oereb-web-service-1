@@ -10,6 +10,7 @@ buildscript {
 plugins {
   id "java"
   id "com.jfrog.bintray" version "1.8.4" 
+  id "com.jfrog.artifactory" version "4.9.7" //"4.5.4"
   id "maven-publish"
 }
 
@@ -91,6 +92,10 @@ def getGitHash = { ->
         standardOutput = stdout
     }
     return stdout.toString().trim()
+}
+
+ext {
+	buildNumber = getGitHash()
 }
 
 sourceSets {
@@ -194,6 +199,32 @@ def pomConfig = {
     }
 }
 
+// gradle artifactoryDeploy
+artifactory {
+    contextUrl = 'http://oss.jfrog.org'
+    publish {
+        repository {
+            repoKey = 'oss-snapshot-local'
+            username = repos_usr
+            password = repos_pwd
+        }
+        defaults {
+            publications('mavenPublication')
+            publishArtifacts = true
+            publishPom = true
+            properties = [
+                    'build.number': buildNumber,
+                    'build.name': 'oereb-web-service'
+            ]
+        }
+    }
+    resolve {
+        repoKey = 'jcenter'
+    }
+    clientConfig.info.setBuildNumber(buildNumber)
+    clientConfig.info.setBuildName('oereb-web-service')
+}
+
 publishing {
     publications {
         mavenPublication(MavenPublication) {
@@ -219,6 +250,7 @@ publishing {
 }
 
 
+// gradle bintrayPublish
 bintray {
 	user = repos_usr
 	key = repos_pwd
