@@ -16,7 +16,9 @@ import javax.xml.datatype.XMLGregorianCalendar;
 import javax.xml.namespace.QName;
 
 import org.apache.commons.io.FilenameUtils;
+import org.hibernate.validator.internal.util.logging.LoggerFactory;
 import org.postgresql.util.Base64;
+import org.slf4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.InputStreamResource;
@@ -39,7 +41,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.sun.istack.logging.Logger;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
@@ -86,6 +87,9 @@ import ch.so.agi.oereb.pdf4oereb.Locale;
 public class OerebController {
     
     protected static final String extractNS = "http://schemas.geo.admin.ch/V_D/OeREB/1.0/Extract";
+    
+    Logger logger=org.slf4j.LoggerFactory.getLogger(this.getClass());
+    
     @Autowired
     JdbcTemplate jdbcTemplate;
     
@@ -95,14 +99,19 @@ public class OerebController {
     @Autowired
     ch.so.agi.oereb.pdf4oereb.Converter extractXml2pdf;
     
+    @Value("${spring.datasource.url}")
+    private String dburl;
     @Value("${oereb.dbschema}")
     private String dbschema;
     @Value("${oereb.cadastreAuthorityUrl}")
     private String plrCadastreAuthorityUrl;
+    
+    
     private static byte[] minimalImage=Base64.decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==");
 
     @GetMapping("/")
     public ResponseEntity<String>  ping() {
+        logger.info("env.dburl {}",dburl);
         return new ResponseEntity<String>("oereb web service",HttpStatus.OK);
     }
     
@@ -217,11 +226,15 @@ public class OerebController {
         GetExtractByIdResponse responseEle=new GetExtractByIdResponse(response);
         
         if(format.equals("pdf")) {
-            final String tmpFolder = "tmp";
-            java.io.File tmpExtractFile=new java.io.File(tmpFolder,egrid+".xml");//java.io.File.createTempFile("oerebws", "xml");
+            java.io.File tmpFolder=new java.io.File(System.getProperty("java.io.tmpdir"),"oerebws"+Thread.currentThread().getId());
+            if(!tmpFolder.exists()) {
+                tmpFolder.mkdirs();
+            }
+            logger.info("tmpFolder {}",tmpFolder.getAbsolutePath());
+            java.io.File tmpExtractFile=new java.io.File(tmpFolder,egrid+".xml");
             marshaller.marshal(responseEle,new javax.xml.transform.stream.StreamResult(tmpExtractFile));
             try {
-                java.io.File pdfFile=extractXml2pdf.runXml2Pdf(tmpExtractFile.getPath(), tmpFolder, Locale.DE);
+                java.io.File pdfFile=extractXml2pdf.runXml2Pdf(tmpExtractFile.getAbsolutePath(), tmpFolder.getAbsolutePath(), Locale.DE);
                 String pdfFilename = pdfFile.getName();
                 /*
                 HttpHeaders headers = new HttpHeaders();
