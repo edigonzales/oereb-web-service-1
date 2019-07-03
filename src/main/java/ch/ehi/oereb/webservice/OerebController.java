@@ -284,7 +284,10 @@ public class OerebController {
             throw new IllegalArgumentException("unsupported format <"+format+">");
         }
         GetCapabilitiesResponseType ret=new GetCapabilitiesResponseType();
-        // TODO Liste der vorhandenen OeREB-Katasterthemen (inkl. Kantons- und Gemeindethemen);
+        
+        // Liste der vorhandenen OeREB-Katasterthemen (inkl. Kantons- und Gemeindethemen);
+        setThemes(ret.getTopic(),getTopics());
+        
         // Liste der vorhandenen Gemeinden;
         List<Integer> gemeinden=jdbcTemplate.query(
                 "SELECT bfsnr FROM "+getSchema()+".dm01vch24lv95dgemeindegrenzen_gemeinde", new RowMapper<Integer>() {
@@ -675,8 +678,11 @@ public class OerebController {
     }
 
     private List<String> getTopics(int bfsNr) {
-        List<String> ret=jdbcTemplate.queryForList("SELECT avalue from oereb.oereb_extractannex_v1_0_code_ as c JOIN oereb.oerb_xtnx_v1_0annex_municipalitywithplrc as m On c.oerb_xtnx_vpltywthplrc_themes=m.t_id WHERE m.municipality=?",String.class,bfsNr);
+        List<String> ret=jdbcTemplate.queryForList("SELECT avalue from "+getSchema()+".oereb_extractannex_v1_0_code_ as c JOIN "+getSchema()+".oerb_xtnx_v1_0annex_municipalitywithplrc as m On c.oerb_xtnx_vpltywthplrc_themes=m.t_id WHERE m.municipality=?",String.class,bfsNr);
         return ret;
     }
-    
+    private List<String> getTopics() {
+        List<String> ret=jdbcTemplate.queryForList("SELECT DISTINCT avalue from "+getSchema()+".oereb_extractannex_v1_0_code_",String.class);
+        return ret;
+    }
 }
