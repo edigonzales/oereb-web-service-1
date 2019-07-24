@@ -86,6 +86,32 @@ import ch.so.agi.oereb.pdf4oereb.Locale;
 @Controller
 public class OerebController {
     
+    private static final String TABLE_OERB_XTNX_V1_0ANNEX_MUNICIPALITYWITHPLRC = "oerb_xtnx_v1_0annex_municipalitywithplrc";
+
+    private static final String TABLE_DM01VCH24LV95DGEMEINDEGRENZEN_GEMEINDE = "dm01vch24lv95dgemeindegrenzen_gemeinde";
+
+    private static final String TABLE_SO_G_V_0180822GRUNDBUCHKREISE_GRUNDBUCHKREIS = "so_g_v_0180822grundbuchkreise_grundbuchkreis";
+
+    private static final String TABLE_OERB_XTNX_V1_0ANNEX_BASEDATA = "oerb_xtnx_v1_0annex_basedata";
+
+    private static final String TABLE_OERB_XTNX_V1_0ANNEX_GENERALINFORMATION = "oerb_xtnx_v1_0annex_generalinformation";
+
+    private static final String TABLE_OERB_XTNX_V1_0ANNEX_EXCLUSIONOFLIABILITY = "oerb_xtnx_v1_0annex_exclusionofliability";
+
+    private static final String TABLE_OERB_XTNX_V1_0ANNEX_GLOSSARY = "oerb_xtnx_v1_0annex_glossary";
+
+    private static final String TABLE_OERB_XTNX_V1_0ANNEX_OFFICE = "oerb_xtnx_v1_0annex_office";
+
+    private static final String TABLE_OERB_XTNX_V1_0ANNEX_LOGO = "oerb_xtnx_v1_0annex_logo";
+
+    private static final String TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_LIEGENSCHAFT = "dm01vch24lv95dliegenschaften_liegenschaft";
+
+    private static final String TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_GRUNDSTUECK = "dm01vch24lv95dliegenschaften_grundstueck";
+
+    private static final String TABLE_OEREBKRM_V1_1CODELISTENTEXT_THEMATXT = "oerebkrm_v1_1codelistentext_thematxt";
+
+    private static final String TABLE_OEREB_EXTRACTANNEX_V1_0_CODE = "oereb_extractannex_v1_0_code_";
+
     protected static final String extractNS = "http://schemas.geo.admin.ch/V_D/OeREB/1.0/Extract";
     
     Logger logger=org.slf4j.LoggerFactory.getLogger(this.getClass());
@@ -132,7 +158,7 @@ public class OerebController {
         }
         GetEGRIDResponseType ret= new GetEGRIDResponseType();
         List<JAXBElement<String>[]> gsList=jdbcTemplate.query(
-                "SELECT egris_egrid,nummer,nbident FROM "+getSchema()+".dm01vch24lv95dliegenschaften_grundstueck WHERE nummer=? AND nbident=?", new RowMapper<JAXBElement<String>[]>() {
+                "SELECT egris_egrid,nummer,nbident FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_GRUNDSTUECK+" WHERE nummer=? AND nbident=?", new RowMapper<JAXBElement<String>[]>() {
                     @Override
                     public JAXBElement<String>[] mapRow(ResultSet rs, int rowNum) throws SQLException {
                         JAXBElement<String> ret[]=new JAXBElement[3];
@@ -182,7 +208,7 @@ public class OerebController {
         // SELECT g.egris_egrid,g.nummer,g.nbident FROM oereb.dm01vch24lv95dliegenschaften_grundstueck g LEFT JOIN oereb.dm01vch24lv95dliegenschaften_liegenschaft l ON l.liegenschaft_von=g.t_id WHERE ST_DWithin(ST_Transform(ST_GeomFromEWKT('SRID=4326;POINT( 7.94554 47.41277)'),2056),l.geometrie,1.0)
         GetEGRIDResponseType ret= new GetEGRIDResponseType();
         List<JAXBElement<String>[]> gsList=jdbcTemplate.query(
-                "SELECT egris_egrid,nummer,nbident FROM "+getSchema()+".dm01vch24lv95dliegenschaften_grundstueck g LEFT JOIN "+getSchema()+".dm01vch24lv95dliegenschaften_liegenschaft l ON l.liegenschaft_von=g.t_id WHERE ST_DWithin(ST_Transform(?,2056),l.geometrie,1.0)", new RowMapper<JAXBElement<String>[]>() {
+                "SELECT egris_egrid,nummer,nbident FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_GRUNDSTUECK+" g LEFT JOIN "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_LIEGENSCHAFT+" l ON l.liegenschaft_von=g.t_id WHERE ST_DWithin(ST_Transform(?,2056),l.geometrie,1.0)", new RowMapper<JAXBElement<String>[]>() {
                     @Override
                     public JAXBElement<String>[] mapRow(ResultSet rs, int rowNum) throws SQLException {
                         JAXBElement<String> ret[]=new JAXBElement[3];
@@ -376,7 +402,7 @@ public class OerebController {
 
     private byte[] getImage(String code) {
         java.util.List<byte[]> baseData=jdbcTemplate.queryForList(
-                "SELECT logo FROM "+getSchema()+".oerb_xtnx_v1_0annex_logo WHERE acode=?",byte[].class,code);
+                "SELECT logo FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_LOGO+" WHERE acode=?",byte[].class,code);
         if(baseData!=null && baseData.size()==1) {
             return baseData.get(0);
         }
@@ -385,7 +411,7 @@ public class OerebController {
 
     private void setOffice(OfficeType office) {
         java.util.Map<String,Object> baseData=jdbcTemplate.queryForMap(
-                "SELECT aname_de,auid,line1,line2,street,anumber,postalcode,city FROM "+getSchema()+".oerb_xtnx_v1_0annex_office WHERE officeatweb=?",office.getOfficeAtWeb().getValue());
+                "SELECT aname_de,auid,line1,line2,street,anumber,postalcode,city FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_OFFICE+" WHERE officeatweb=?",office.getOfficeAtWeb().getValue());
         if(baseData!=null) {
             office.setName(createMultilingualTextType(baseData, "aname"));
             office.setUID((String) baseData.get("auid"));
@@ -400,7 +426,7 @@ public class OerebController {
 
     private void setGlossary(ExtractType extract) {
         java.util.List<java.util.Map<String,Object>> baseDataList=jdbcTemplate.queryForList(
-                "SELECT title_de,title_fr,title_it,title_rm,title_en,content_de,content_fr,content_it,content_rm,content_en FROM "+getSchema()+".oerb_xtnx_v1_0annex_glossary");
+                "SELECT title_de,title_fr,title_it,title_rm,title_en,content_de,content_fr,content_it,content_rm,content_en FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_GLOSSARY);
         for(java.util.Map<String,Object> baseData:baseDataList) {
             MultilingualMTextType content = createMultilingualMTextType(baseData,"content");
             MultilingualTextType title = createMultilingualTextType(baseData,"title");
@@ -413,7 +439,7 @@ public class OerebController {
 
     private void setExclusionOfLiability(ExtractType extract) {
         java.util.List<java.util.Map<String,Object>> baseDataList=jdbcTemplate.queryForList(
-                "SELECT title_de,title_fr,title_it,title_rm,title_en,content_de,content_fr,content_it,content_rm,content_en FROM "+getSchema()+".oerb_xtnx_v1_0annex_exclusionofliability");
+                "SELECT title_de,title_fr,title_it,title_rm,title_en,content_de,content_fr,content_it,content_rm,content_en FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_EXCLUSIONOFLIABILITY);
         for(java.util.Map<String,Object> baseData:baseDataList) {
             MultilingualMTextType content = createMultilingualMTextType(baseData,"content");
             MultilingualTextType title = createMultilingualTextType(baseData,"title");
@@ -426,13 +452,13 @@ public class OerebController {
 
     private void setGeneralInformation(ExtractType extract) {
         java.util.Map<String,Object> baseData=jdbcTemplate.queryForMap(
-                "SELECT content_de,content_fr,content_it,content_rm,content_en FROM "+getSchema()+".oerb_xtnx_v1_0annex_generalinformation");
+                "SELECT content_de,content_fr,content_it,content_rm,content_en FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_GENERALINFORMATION);
         extract.setGeneralInformation(createMultilingualMTextType(baseData,"content"));
     }
 
     private void setBaseData(ExtractType extract) {
         java.util.Map<String,Object> baseData=jdbcTemplate.queryForMap(
-                "SELECT content_de,content_fr,content_it,content_rm,content_en FROM "+getSchema()+".oerb_xtnx_v1_0annex_basedata");
+                "SELECT content_de,content_fr,content_it,content_rm,content_en FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_BASEDATA);
         extract.setBaseData(createMultilingualMTextType(baseData,"content"));
     }
 
@@ -478,7 +504,7 @@ public class OerebController {
         PrecisionModel precisionModel=new PrecisionModel(1000.0);
         GeometryFactory geomFactory=new GeometryFactory(precisionModel);
         List<Grundstueck> gslist=jdbcTemplate.query(
-                "SELECT ST_AsBinary(geometrie),nummer,nbident,art,gesamteflaechenmass,flaechenmass FROM "+getSchema()+".dm01vch24lv95dliegenschaften_grundstueck g LEFT JOIN "+getSchema()+".dm01vch24lv95dliegenschaften_liegenschaft l ON g.t_id=l.liegenschaft_von WHERE g.egris_egrid=?", new RowMapper<Grundstueck>() {
+                "SELECT ST_AsBinary(geometrie),nummer,nbident,art,gesamteflaechenmass,flaechenmass FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_GRUNDSTUECK+" g LEFT JOIN "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_LIEGENSCHAFT+" l ON g.t_id=l.liegenschaft_von WHERE g.egris_egrid=?", new RowMapper<Grundstueck>() {
                     WKBReader decoder=new WKBReader(geomFactory);
                     
                     @Override
@@ -523,7 +549,7 @@ public class OerebController {
     }
     private Geometry getParcelGeometryByEgrid(String egrid) {
         byte[] geom=jdbcTemplate.queryForObject(
-                "SELECT ST_AsBinary(ST_Collect(geometrie)) FROM "+getSchema()+".dm01vch24lv95dliegenschaften_grundstueck g LEFT JOIN "+getSchema()+".dm01vch24lv95dliegenschaften_liegenschaft l ON g.egris_egrid=?", new RowMapper<byte[]>() {
+                "SELECT ST_AsBinary(ST_Collect(geometrie)) FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_GRUNDSTUECK+" g LEFT JOIN "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_LIEGENSCHAFT+" l ON g.egris_egrid=?", new RowMapper<byte[]>() {
                     @Override
                     public byte[] mapRow(ResultSet rs, int rowNum) throws SQLException {
                         return rs.getBytes(1);
@@ -599,12 +625,12 @@ public class OerebController {
         }else {
             // grundbuchkreis
             java.util.Map<String,Object> gbKreis=jdbcTemplate.queryForMap(
-                    "SELECT aname,bfsnr FROM "+getSchema()+".so_g_v_0180822grundbuchkreise_grundbuchkreis WHERE nbident=?",nbident);
+                    "SELECT aname,bfsnr FROM "+getSchema()+"."+TABLE_SO_G_V_0180822GRUNDBUCHKREISE_GRUNDBUCHKREIS+" WHERE nbident=?",nbident);
             gs.setSubunitOfLandRegister((String)gbKreis.get("aname"));
             gs.setFosNr((Integer)gbKreis.get("bfsnr"));
             // gemeindename
             String gemeindename=jdbcTemplate.queryForObject(
-                    "SELECT aname FROM "+getSchema()+".dm01vch24lv95dgemeindegrenzen_gemeinde WHERE bfsnr=?",String.class,gs.getFosNr());
+                    "SELECT aname FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DGEMEINDEGRENZEN_GEMEINDE+" WHERE bfsnr=?",String.class,gs.getFosNr());
             gs.setMunicipality(gemeindename);
         }
         gs.setLandRegistryArea((int)parcel.getFlaechenmas());
@@ -655,7 +681,7 @@ public class OerebController {
                 ret.add("Waldabstandslinien");
                 if(topic.equals("ALL")) {
                     java.util.List<String> baseDataList=jdbcTemplate.queryForList(
-                            "SELECT othercode FROM "+getSchema()+".oerebkrm_v1_1codelistentext_thematxt WHERE acode='WeiteresThema'",String.class);
+                            "SELECT othercode FROM "+getSchema()+"."+TABLE_OEREBKRM_V1_1CODELISTENTEXT_THEMATXT+" WHERE acode='WeiteresThema'",String.class);
                     for(String extTopic:baseDataList) {
                         ret.add(extTopic);
                     }
@@ -670,7 +696,7 @@ public class OerebController {
 
     private LocalisedTextType getTopicText(String theme) {
         String title_de=jdbcTemplate.queryForObject(
-                "SELECT titel_de FROM "+getSchema()+".oerebkrm_v1_1codelistentext_thematxt WHERE acode=? OR othercode=?",String.class,theme,theme);
+                "SELECT titel_de FROM "+getSchema()+"."+TABLE_OEREBKRM_V1_1CODELISTENTEXT_THEMATXT+" WHERE acode=? OR othercode=?",String.class,theme,theme);
         LocalisedTextType ret=new LocalisedTextType();
         ret.setLanguage(LanguageCodeType.DE);
         ret.setText(title_de);
@@ -678,11 +704,11 @@ public class OerebController {
     }
 
     private List<String> getTopics(int bfsNr) {
-        List<String> ret=jdbcTemplate.queryForList("SELECT avalue from "+getSchema()+".oereb_extractannex_v1_0_code_ as c JOIN "+getSchema()+".oerb_xtnx_v1_0annex_municipalitywithplrc as m On c.oerb_xtnx_vpltywthplrc_themes=m.t_id WHERE m.municipality=?",String.class,bfsNr);
+        List<String> ret=jdbcTemplate.queryForList("SELECT avalue from "+getSchema()+"."+TABLE_OEREB_EXTRACTANNEX_V1_0_CODE+" as c JOIN "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_MUNICIPALITYWITHPLRC+" as m On c.oerb_xtnx_vpltywthplrc_themes=m.t_id WHERE m.municipality=?",String.class,bfsNr);
         return ret;
     }
     private List<String> getTopics() {
-        List<String> ret=jdbcTemplate.queryForList("SELECT DISTINCT avalue from "+getSchema()+".oereb_extractannex_v1_0_code_",String.class);
+        List<String> ret=jdbcTemplate.queryForList("SELECT DISTINCT avalue from "+getSchema()+"."+TABLE_OEREB_EXTRACTANNEX_V1_0_CODE,String.class);
         return ret;
     }
 }
