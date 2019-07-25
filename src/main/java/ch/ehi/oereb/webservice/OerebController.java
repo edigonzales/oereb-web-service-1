@@ -86,30 +86,19 @@ import ch.so.agi.oereb.pdf4oereb.Locale;
 @Controller
 public class OerebController {
     
+    private static final String TABLE_OERB_XTNX_V1_0ANNEX_THEMATXT = "oerb_xtnx_v1_0annex_thematxt";
     private static final String TABLE_OERB_XTNX_V1_0ANNEX_MUNICIPALITYWITHPLRC = "oerb_xtnx_v1_0annex_municipalitywithplrc";
-
     private static final String TABLE_DM01VCH24LV95DGEMEINDEGRENZEN_GEMEINDE = "dm01vch24lv95dgemeindegrenzen_gemeinde";
-
     private static final String TABLE_SO_G_V_0180822GRUNDBUCHKREISE_GRUNDBUCHKREIS = "so_g_v_0180822grundbuchkreise_grundbuchkreis";
-
     private static final String TABLE_OERB_XTNX_V1_0ANNEX_BASEDATA = "oerb_xtnx_v1_0annex_basedata";
-
     private static final String TABLE_OERB_XTNX_V1_0ANNEX_GENERALINFORMATION = "oerb_xtnx_v1_0annex_generalinformation";
-
     private static final String TABLE_OERB_XTNX_V1_0ANNEX_EXCLUSIONOFLIABILITY = "oerb_xtnx_v1_0annex_exclusionofliability";
-
     private static final String TABLE_OERB_XTNX_V1_0ANNEX_GLOSSARY = "oerb_xtnx_v1_0annex_glossary";
-
     private static final String TABLE_OERB_XTNX_V1_0ANNEX_OFFICE = "oerb_xtnx_v1_0annex_office";
-
     private static final String TABLE_OERB_XTNX_V1_0ANNEX_LOGO = "oerb_xtnx_v1_0annex_logo";
-
     private static final String TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_LIEGENSCHAFT = "dm01vch24lv95dliegenschaften_liegenschaft";
-
     private static final String TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_GRUNDSTUECK = "dm01vch24lv95dliegenschaften_grundstueck";
-
     private static final String TABLE_OEREBKRM_V1_1CODELISTENTEXT_THEMATXT = "oerebkrm_v1_1codelistentext_thematxt";
-
     private static final String TABLE_OEREB_EXTRACTANNEX_V1_0_CODE = "oereb_extractannex_v1_0_code_";
 
     protected static final String extractNS = "http://schemas.geo.admin.ch/V_D/OeREB/1.0/Extract";
@@ -312,7 +301,7 @@ public class OerebController {
         GetCapabilitiesResponseType ret=new GetCapabilitiesResponseType();
         
         // Liste der vorhandenen OeREB-Katasterthemen (inkl. Kantons- und Gemeindethemen);
-        setThemes(ret.getTopic(),getTopics());
+        setThemes(ret.getTopic(),getAllTopicsOfThisCadastre());
         
         // Liste der vorhandenen Gemeinden;
         List<Integer> gemeinden=jdbcTemplate.query(
@@ -362,7 +351,7 @@ public class OerebController {
         setParcel(extract,egrid,parcel,withGeometry);
         int bfsNr=extract.getRealEstate().getFosNr();
         // freigeschaltete Themen in der betroffenen Gemeinde
-        List<String> availableTopics=getTopics(bfsNr);
+        List<String> availableTopics=getTopicsOfMunicipality(bfsNr);
         List<String> queryTopics=new ArrayList<String>();
         queryTopics.addAll(availableTopics);
         queryTopics.retainAll(requestedTopics);
@@ -681,7 +670,7 @@ public class OerebController {
                 ret.add("Waldabstandslinien");
                 if(topic.equals("ALL")) {
                     java.util.List<String> baseDataList=jdbcTemplate.queryForList(
-                            "SELECT othercode FROM "+getSchema()+"."+TABLE_OEREBKRM_V1_1CODELISTENTEXT_THEMATXT+" WHERE acode='WeiteresThema'",String.class);
+                            "SELECT othercode FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_THEMATXT,String.class);
                     for(String extTopic:baseDataList) {
                         ret.add(extTopic);
                     }
@@ -694,20 +683,27 @@ public class OerebController {
         return new ArrayList<String>(ret);
     }
 
-    private LocalisedTextType getTopicText(String theme) {
-        String title_de=jdbcTemplate.queryForObject(
-                "SELECT titel_de FROM "+getSchema()+"."+TABLE_OEREBKRM_V1_1CODELISTENTEXT_THEMATXT+" WHERE acode=? OR othercode=?",String.class,theme,theme);
+    private LocalisedTextType getTopicText(String code) {
+        String title_de=null;
+        // cantonal code?
+        if(code.indexOf('.')>-1) {
+            title_de=jdbcTemplate.queryForObject(
+                    "SELECT titel_de FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_THEMATXT+" WHERE othercode=?",String.class,code);
+        }else {
+            title_de=jdbcTemplate.queryForObject(
+                    "SELECT titel_de FROM "+getSchema()+"."+TABLE_OEREBKRM_V1_1CODELISTENTEXT_THEMATXT+" WHERE acode=?",String.class,code);
+        }
         LocalisedTextType ret=new LocalisedTextType();
         ret.setLanguage(LanguageCodeType.DE);
         ret.setText(title_de);
         return ret;
     }
 
-    private List<String> getTopics(int bfsNr) {
+    private List<String> getTopicsOfMunicipality(int bfsNr) {
         List<String> ret=jdbcTemplate.queryForList("SELECT avalue from "+getSchema()+"."+TABLE_OEREB_EXTRACTANNEX_V1_0_CODE+" as c JOIN "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_MUNICIPALITYWITHPLRC+" as m On c.oerb_xtnx_vpltywthplrc_themes=m.t_id WHERE m.municipality=?",String.class,bfsNr);
         return ret;
     }
-    private List<String> getTopics() {
+    private List<String> getAllTopicsOfThisCadastre() {
         List<String> ret=jdbcTemplate.queryForList("SELECT DISTINCT avalue from "+getSchema()+"."+TABLE_OEREB_EXTRACTANNEX_V1_0_CODE,String.class);
         return ret;
     }
