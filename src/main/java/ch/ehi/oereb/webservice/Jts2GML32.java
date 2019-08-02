@@ -31,6 +31,14 @@ public class Jts2GML32 {
         }
         throw new IllegalArgumentException("unexpected geometry type");
     }
+    public SurfacePropertyTypeType convertSurface(com.vividsolutions.jts.geom.Geometry geometry) {
+        if(geometry instanceof com.vividsolutions.jts.geom.Polygon) {
+            SurfacePropertyTypeType surfaceProperty=new SurfacePropertyTypeType();
+            surfaceProperty.setAbstractSurface(convertPolygon((com.vividsolutions.jts.geom.Polygon)geometry));
+            return surfaceProperty;
+        }
+        throw new IllegalArgumentException("unexpected geometry type");
+    }
     public Polygon convertPolygon(com.vividsolutions.jts.geom.Polygon geometry) {
         
         com.vividsolutions.jts.geom.LineString jtsLineString=geometry.getExteriorRing();
