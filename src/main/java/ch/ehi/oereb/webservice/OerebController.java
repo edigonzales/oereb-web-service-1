@@ -732,6 +732,8 @@ public class OerebController {
                         //rest.setSubTheme(value);
                         String typeCode=rs.getString("artcode"); 
                         String typeCodelist=rs.getString("artcodeliste"); 
+                        rest.setTypeCode(typeCode);
+                        rest.setTypeCodelist(typeCodelist);
                         
                         OfficeType zustaendigeStelle=new OfficeType();
                         zustaendigeStelle.setName(createMultilingualTextType(rs.getString("ea_aname_de")));
