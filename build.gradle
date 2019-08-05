@@ -9,9 +9,7 @@ buildscript {
 
 plugins {
   id "java"
-  id "com.jfrog.bintray" version "1.8.4" 
-  id "com.jfrog.artifactory" version "4.9.7" //"4.5.4"
-  id "maven-publish"
+  id "maven"
 }
 
 apply plugin: 'org.springframework.boot'
@@ -35,6 +33,7 @@ compileJava.options.encoding = 'US-ASCII'
 
 configurations {
     jaxb
+    deployerJars
 }
 
 dependencies {
@@ -59,6 +58,7 @@ dependencies {
 		'com.sun.xml.bind:jaxb-xjc:2.2.7',
 		'com.sun.xml.bind:jaxb-impl:2.2.7'
     )
+    deployerJars "org.apache.maven.wagon:wagon-ftp:3.0.0"
 }
 
 repositories {
@@ -199,75 +199,13 @@ def pomConfig = {
     }
 }
 
-// gradle artifactoryDeploy
-artifactory {
-    contextUrl = 'http://oss.jfrog.org'
-    publish {
-        repository {
-            repoKey = 'oss-snapshot-local'
-            username = repos_usr
-            password = repos_pwd
-        }
-        defaults {
-            publications('mavenPublication')
-            publishArtifacts = true
-            publishPom = true
-            properties = [
-                    'build.number': buildNumber,
-                    'build.name': 'oereb-web-service'
-            ]
-        }
-    }
-    resolve {
-        repoKey = 'jcenter'
-    }
-    clientConfig.info.setBuildNumber(buildNumber)
-    clientConfig.info.setBuildName('oereb-web-service')
-}
-
-publishing {
-    publications {
-        mavenPublication(MavenPublication) {
-            from components.java
-            artifact sourcesJar {
-                classifier "sources"
-            }
-            artifact javadocJar {
-                classifier "javadoc"
-            }
-            groupId project.group
-            artifactId project.name
-            version project.version
-            pom.withXml {
-                def root = asNode()
-                root.appendNode('description', 'A cadastre of public-law restrictions on landownership web service')
-                root.appendNode('name', project.name)
-                root.appendNode('url', githubRepoUrl)
-                root.children().last() + pomConfig
+uploadArchives {
+    repositories {
+        mavenDeployer {
+        	configuration = configurations.deployerJars
+			repository(url: 'ftp://ftp.umleditor.org'){
+            	authentication(userName: repos_usr, password: repos_pwd)
             }
         }
     }
-}
-
-
-// gradle bintrayPublish
-bintray {
-	user = repos_usr
-	key = repos_pwd
-	publications = ['mavenPublication']
-	publish = true
-
-	pkg {
-		repo = 'oereb-web-service'
-		name = 'oereb-web-service'
-		userOrg = 'claeis'
-		licenses = ['LGPL-2.1']
-		vcsUrl = githubRepoUrl
-		version {
-            name = project.version
-            desc = project.version
-            released  = new Date()
-        }		
-	}
-
 }

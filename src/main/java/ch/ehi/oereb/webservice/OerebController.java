@@ -1,6 +1,10 @@
 package ch.ehi.oereb.webservice;
 
 import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -45,8 +49,10 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.geom.Envelope;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.MultiPolygon;
@@ -716,7 +722,8 @@ public class OerebController {
                     RestrictionOnLandownershipType rest=restrictions.get(e_id);
                     if(rest==null) {
                         
-                        rest=new RestrictionOnLandownershipType();
+                        RestrictionOnLandownershipType localRest=new RestrictionOnLandownershipType();
+                        rest=localRest;
                         restrictions.put(e_id,rest);
                         rest.setInformation(createMultilingualMTextType(aussage_de));
                         rest.setLawstatus(mapLawstatus(rs.getString("e_rechtsstatus")));
@@ -733,9 +740,22 @@ public class OerebController {
                         rest.setResponsibleOffice(zustaendigeStelle);
                         
                         MapType map=new MapType();
-                        map.setImage(minimalImage);
-                        //map.setLayerIndex(value);
-                        //map.setLayerOpacity(value);
+                        String wmsUrl=rs.getString("verweiswms");
+                        Envelope bbox = getMapBBOX(parcelGeom);
+                        wmsUrl = getWmsUrl(bbox, DPI,wmsUrl);
+                        map.setReferenceWMS(wmsUrl);
+                        try {
+                            byte wmsImage[]=getWmsImage(wmsUrl);
+                            map.setImage(wmsImage);
+                        } catch (IOException | URISyntaxException e) {
+                            logger.error("failed to get wms image",e);
+                            map.setImage(minimalImage);
+                        }
+                        map.setLayerIndex(1);
+                        map.setLayerOpacity(0.6);
+                        //map.setMaxNS95(value);
+                        //map.setMinNS95(value);
+                        
                         map.setLegendAtWeb(createWebReferenceType(rs.getString("legendeimweb")));
                         List<LegendEntryType> legend = map.getOtherLegend();
                         {
@@ -756,7 +776,7 @@ public class OerebController {
                                     final String l_code = rs.getString("artcode");
                                     final String l_codelist = rs.getString("artcodeliste");
                                     if(l_code.equals(typeCode) && l_codelist.equals(typeCodelist)) {
-                                        //rest.setSymbol(rs.getBytes("symbol"));
+                                        localRest.setSymbol(rs.getBytes("symbol"));
                                     }else {
                                         LegendEntryType l=new LegendEntryType();
                                         l.setLegendText(createMultilingualTextType(rs.getString("legendetext_de")));
@@ -770,10 +790,9 @@ public class OerebController {
                                 }
                             },d_id);
                         }
-                        map.setReferenceWMS(rs.getString("verweiswms"));
-                        //map.setMaxNS95(value);
-                        //map.setMinNS95(value);
                         rest.setMap(map);
+                        rest.setPartInPercent(new BigDecimal(100)); // FIXME
+                        rest.setAreaShare(1); // FIXME
                         
                         String stmt="WITH RECURSIVE docs as (" + 
                                 "    select cast(null as bigint) as ursprung "
@@ -878,6 +897,7 @@ public class OerebController {
         concernedTopicsList.addAll(concernedTopics);
     }
     HashMap<String,LawstatusType> statusCodes=null;
+    private static final int DPI = 300;
     private LawstatusType mapLawstatus(String xtfTransferCode) {
         if(statusCodes==null) {
             statusCodes=new HashMap<String,LawstatusType>();
@@ -952,20 +972,128 @@ public class OerebController {
         // geometry must be set here (because xml2pdf requires it), even if is not request by service client
         MultiSurfacePropertyTypeType geomGml=new Jts2GML32().convertMultiSurface(parcel.getGeometrie());
         gs.setLimit(geomGml);
+        
+        
+        Envelope bbox = getMapBBOX(parcel.getGeometrie());
+        
         {
+            // Planausschnitt 174 * 99 mm
             MapType planForLandregister=new MapType();
-            planForLandregister.setImage(minimalImage);
-            //java.net.URL url=new java.net.URL(oerebPlanForLandregister);
-            planForLandregister.setReferenceWMS(oerebPlanForLandregister);
+            String fixedWmsUrl = getWmsUrl(bbox, DPI,oerebPlanForLandregister);
+            planForLandregister.setReferenceWMS(fixedWmsUrl);
             gs.setPlanForLandRegister(planForLandregister);
+            try {
+                planForLandregister.setImage(getWmsImage(fixedWmsUrl));
+            } catch (IOException | URISyntaxException e) {
+                logger.error("failed to get wms image",e);
+                planForLandregister.setImage(minimalImage);
+            }
+            planForLandregister.setLayerIndex(0);
+            planForLandregister.setLayerOpacity(0.6);
+            
         }
         {
+            // Planausschnitt 174 * 99 mm
             MapType planForLandregisterMainPage=new MapType();
-            planForLandregisterMainPage.setImage(minimalImage);
+            String fixedWmsUrl = getWmsUrl(bbox, DPI,oerebPlanForLandregisterMainPage);
+            planForLandregisterMainPage.setReferenceWMS(fixedWmsUrl);
             gs.setPlanForLandRegisterMainPage(planForLandregisterMainPage);
+            try {
+                planForLandregisterMainPage.setImage(getWmsImage(fixedWmsUrl));
+            } catch (IOException | URISyntaxException e) {
+                logger.error("failed to get wms image",e);
+                planForLandregisterMainPage.setImage(minimalImage);
+            }
         }
         extract.setRealEstate(gs);
         
+    }
+
+    private Envelope getMapBBOX(Geometry parcelGeom) {
+        Envelope bbox = parcelGeom.getEnvelopeInternal();
+        bbox.expandBy(0.01);
+        return bbox;
+    }
+
+    private byte[] getWmsImage(String fixedWmsUrl) 
+        throws IOException, URISyntaxException 
+    {
+        byte ret[]=null;
+        java.net.URL url=null;
+        url=new java.net.URI(fixedWmsUrl).toURL();
+        logger.trace("fetching <{}> ...",url);
+        java.net.URLConnection conn=null;
+        try {
+            //
+            // java  -Dhttp.proxyHost=myproxyserver.com  -Dhttp.proxyPort=80 MyJavaApp
+            //
+            // System.setProperty("http.proxyHost", "myProxyServer.com");
+            // System.setProperty("http.proxyPort", "80");
+            //
+            // System.setProperty("java.net.useSystemProxies", "true");
+            //
+            // since 1.5 
+            // Proxy instance, proxy ip = 123.0.0.1 with port 8080
+            // Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress("123.0.0.1", 8080));
+            // URL url = new URL("http://www.yahoo.com");
+            // HttpURLConnection uc = (HttpURLConnection)url.openConnection(proxy);
+            // uc.connect();
+            // 
+            conn = url.openConnection();
+        } catch (IOException e) {
+            throw e;
+        }
+        java.io.BufferedInputStream in=null;
+        java.io.ByteArrayOutputStream fos=null;
+        try{
+            try {
+                in=new java.io.BufferedInputStream(conn.getInputStream());
+            } catch (IOException e) {
+                throw e;
+            }
+            fos = new java.io.ByteArrayOutputStream();
+            try {
+                byte[] buf = new byte[1024];
+                int i = 0;
+                while ((i = in.read(buf)) != -1) {
+                    fos.write(buf, 0, i);
+                }
+            } catch (IOException e) {
+                throw e;
+            }
+            fos.flush();
+            ret=fos.toByteArray();
+        }finally{
+            if(in!=null){
+                try {
+                    in.close();
+                } catch (IOException e) {
+                    logger.error("failed to close wms input stream",e);
+                }
+                in=null;
+            }
+            if(fos!=null){
+                try {
+                    fos.close();
+                } catch (IOException e) {
+                    logger.error("failed to close wms output stream",e);
+                }
+                fos=null;
+            }
+        }
+        return ret;
+    }
+
+    private String getWmsUrl(Envelope bbox, int dpi,String url) {
+        final UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(url);
+        int widthMm=174;
+        int heightMm=99;
+        builder.replaceQueryParam("BBOX", bbox.getMinX()+","+bbox.getMinY()+","+bbox.getMaxX()+","+bbox.getMaxY());
+        builder.replaceQueryParam("DPI", dpi);
+        builder.replaceQueryParam("HEIGHT", (int) (dpi*heightMm/25.4));
+        builder.replaceQueryParam("WIDTH", (int) (dpi*widthMm/25.4));
+        String fixedWmsUrl = builder.build().toUriString();
+        return fixedWmsUrl;
     }
 
 
