@@ -744,7 +744,7 @@ public class OerebController {
                         MapType map=new MapType();
                         String wmsUrl=rs.getString("verweiswms");
                         Envelope bbox = getMapBBOX(parcelGeom);
-                        wmsUrl = getWmsUrl(bbox, DPI,wmsUrl);
+                        wmsUrl = getWmsUrl(bbox, wmsUrl);
                         map.setReferenceWMS(wmsUrl);
                         try {
                             byte wmsImage[]=getWmsImage(wmsUrl);
@@ -899,7 +899,11 @@ public class OerebController {
         concernedTopicsList.addAll(concernedTopics);
     }
     HashMap<String,LawstatusType> statusCodes=null;
-    private static final int DPI = 300;
+    private static final int MAP_DPI = 300;
+    private static final int MAP_WIDTH_MM = 174;
+    private static final int MAP_WIDTH_PIXEL = (int) (MAP_DPI*MAP_WIDTH_MM/25.4);
+    private static final int MAP_HEIGTH_MM = 99;
+    private static final int MAP_HEIGHT_PIXEL = (int) (MAP_DPI*MAP_HEIGTH_MM/25.4);
     private LawstatusType mapLawstatus(String xtfTransferCode) {
         if(statusCodes==null) {
             statusCodes=new HashMap<String,LawstatusType>();
@@ -981,7 +985,7 @@ public class OerebController {
         {
             // Planausschnitt 174 * 99 mm
             MapType planForLandregister=new MapType();
-            String fixedWmsUrl = getWmsUrl(bbox, DPI,oerebPlanForLandregister);
+            String fixedWmsUrl = getWmsUrl(bbox, oerebPlanForLandregister);
             planForLandregister.setReferenceWMS(fixedWmsUrl);
             gs.setPlanForLandRegister(planForLandregister);
             try {
@@ -997,7 +1001,7 @@ public class OerebController {
         {
             // Planausschnitt 174 * 99 mm
             MapType planForLandregisterMainPage=new MapType();
-            String fixedWmsUrl = getWmsUrl(bbox, DPI,oerebPlanForLandregisterMainPage);
+            String fixedWmsUrl = getWmsUrl(bbox, oerebPlanForLandregisterMainPage);
             planForLandregisterMainPage.setReferenceWMS(fixedWmsUrl);
             gs.setPlanForLandRegisterMainPage(planForLandregisterMainPage);
             try {
@@ -1014,6 +1018,10 @@ public class OerebController {
     private Envelope getMapBBOX(Geometry parcelGeom) {
         Envelope bbox = parcelGeom.getEnvelopeInternal();
         bbox.expandBy(0.01);
+        double width=bbox.getWidth();
+        double height=bbox.getHeight();
+        double factor=Math.max(width/MAP_WIDTH_PIXEL,height/MAP_HEIGHT_PIXEL);
+        bbox.expandBy((MAP_WIDTH_PIXEL*factor-width)/2.0, (MAP_HEIGHT_PIXEL*factor-height)/2.0);
         return bbox;
     }
 
@@ -1086,14 +1094,12 @@ public class OerebController {
         return ret;
     }
 
-    private String getWmsUrl(Envelope bbox, int dpi,String url) {
+    private String getWmsUrl(Envelope bbox, String url) {
         final UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(url);
-        int widthMm=174;
-        int heightMm=99;
         builder.replaceQueryParam("BBOX", bbox.getMinX()+","+bbox.getMinY()+","+bbox.getMaxX()+","+bbox.getMaxY());
-        builder.replaceQueryParam("DPI", dpi);
-        builder.replaceQueryParam("HEIGHT", (int) (dpi*heightMm/25.4));
-        builder.replaceQueryParam("WIDTH", (int) (dpi*widthMm/25.4));
+        builder.replaceQueryParam("DPI", MAP_DPI);
+        builder.replaceQueryParam("HEIGHT", MAP_HEIGHT_PIXEL);
+        builder.replaceQueryParam("WIDTH", MAP_WIDTH_PIXEL);
         String fixedWmsUrl = builder.build().toUriString();
         return fixedWmsUrl;
     }
