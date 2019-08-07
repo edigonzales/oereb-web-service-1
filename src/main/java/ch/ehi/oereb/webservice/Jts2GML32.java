@@ -53,12 +53,30 @@ public class Jts2GML32 {
     public LinearRing createLinearRing(com.vividsolutions.jts.geom.LineString jtsLineString) {
         LinearRingTypeType ring=new LinearRingTypeType();
         for(com.vividsolutions.jts.geom.Coordinate jtsCoord:jtsLineString.getCoordinates()) {
-            DirectPositionTypeType pos=new DirectPositionTypeType();
-            pos.getValue().add(jtsCoord.x);
-            pos.getValue().add(jtsCoord.y);
-            ring.getPosOrPointPropertyOrPointRep().add(new Pos(pos));
+            Pos pos = createPos(jtsCoord);
+            ring.getPosOrPointPropertyOrPointRep().add(pos);
         }
         return new LinearRing(ring);
+    }
+    public Pos createPos(com.vividsolutions.jts.geom.Coordinate jtsCoord) {
+        DirectPositionTypeType directPos = createDirectPositionType(jtsCoord);
+        Pos pos = new Pos(directPos);
+        return pos;
+    }
+    public DirectPositionTypeType createDirectPositionType(com.vividsolutions.jts.geom.Coordinate jtsCoord) {
+        DirectPositionTypeType pos=new DirectPositionTypeType();
+        pos.getValue().add(jtsCoord.x);
+        pos.getValue().add(jtsCoord.y);
+        return pos;
+    }
+    public PointPropertyTypeType createPointPropertyType(com.vividsolutions.jts.geom.Coordinate jtsCoord) {
+        Pos pos=createPos(jtsCoord);
+        PointTypeType point=new PointTypeType();
+        point.setPos(pos);
+        Point pointEle=new Point(point);
+        PointPropertyTypeType ret=new PointPropertyTypeType();
+        ret.setPoint(pointEle);
+        return ret;
     }
 
 }

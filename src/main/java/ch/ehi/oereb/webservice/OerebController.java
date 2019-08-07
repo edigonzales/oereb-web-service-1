@@ -66,6 +66,10 @@ import com.vividsolutions.jts.io.WKBWriter;
 import ch.ehi.oereb.schemas.gml._3_2.MultiSurface;
 import ch.ehi.oereb.schemas.gml._3_2.MultiSurfacePropertyTypeType;
 import ch.ehi.oereb.schemas.gml._3_2.MultiSurfaceTypeType;
+import ch.ehi.oereb.schemas.gml._3_2.Point;
+import ch.ehi.oereb.schemas.gml._3_2.PointPropertyTypeType;
+import ch.ehi.oereb.schemas.gml._3_2.PointTypeType;
+import ch.ehi.oereb.schemas.gml._3_2.Pos;
 import ch.ehi.oereb.schemas.gml._3_2.SurfacePropertyTypeType;
 import ch.ehi.oereb.schemas.oereb._1_0.extract.GetCapabilitiesResponse;
 import ch.ehi.oereb.schemas.oereb._1_0.extract.GetCapabilitiesResponseType;
@@ -134,7 +138,8 @@ public class OerebController {
     protected static final String extractNS = "http://schemas.geo.admin.ch/V_D/OeREB/1.0/Extract";
     private static final LanguageCodeType DE = LanguageCodeType.DE;
     
-    Logger logger=org.slf4j.LoggerFactory.getLogger(this.getClass());
+    private Logger logger=org.slf4j.LoggerFactory.getLogger(this.getClass());
+    private Jts2GML32 jts2gml = new Jts2GML32();
     
     @Autowired
     JdbcTemplate jdbcTemplate;
@@ -390,7 +395,9 @@ public class OerebController {
         extract.setExtractIdentifier(UUID.randomUUID().toString());
         List<String> requestedTopics=parseTopics(requestedTopicsAsText);
         // Grundstueck
-        setParcel(extract,egrid,parcel,withGeometry);
+        final Geometry parcelGeom = parcel.getGeometrie();
+        Envelope bbox = getMapBBOX(parcelGeom);
+        setParcel(extract,egrid,parcel,bbox,withGeometry);
         int bfsNr=extract.getRealEstate().getFosNr();
         // freigeschaltete Themen in der betroffenen Gemeinde
         List<String> availableTopics=getTopicsOfMunicipality(bfsNr);
@@ -398,7 +405,8 @@ public class OerebController {
         queryTopics.addAll(availableTopics);
         queryTopics.retainAll(requestedTopics);
         List<String> concernedTopics=new ArrayList<String>();
-        addRestrictions(extract,parcel.getGeometrie(),withGeometry,withImages,queryTopics,concernedTopics);
+
+        addRestrictions(extract,parcelGeom,bbox,withGeometry,withImages,queryTopics,concernedTopics);
         // Themen
         List<String> themeWithoutData=new ArrayList<String>();
         themeWithoutData.addAll(requestedTopics);
@@ -661,7 +669,7 @@ public class OerebController {
         return themeEle;
     }
 
-    private void addRestrictions(ExtractType extract, Geometry parcelGeom, boolean withGeometry, boolean withImages,
+    private void addRestrictions(ExtractType extract, Geometry parcelGeom,Envelope bbox,boolean withGeometry, boolean withImages,
             List<String> queryTopics, List<String> concernedTopicsList) {
         // select schnitt parcelGeom/oerebGeom where restritctionTopic in queryTopic
         WKBWriter geomEncoder=new WKBWriter(2,ByteOrderValues.BIG_ENDIAN);
@@ -743,7 +751,6 @@ public class OerebController {
                         
                         MapType map=new MapType();
                         String wmsUrl=rs.getString("verweiswms");
-                        Envelope bbox = getMapBBOX(parcelGeom);
                         wmsUrl = getWmsUrl(bbox, wmsUrl);
                         map.setReferenceWMS(wmsUrl);
                         try {
@@ -755,8 +762,7 @@ public class OerebController {
                         }
                         map.setLayerIndex(1);
                         map.setLayerOpacity(0.6);
-                        //map.setMaxNS95(value);
-                        //map.setMinNS95(value);
+                        setMapBBOX(map,bbox);
                         
                         map.setLegendAtWeb(createWebReferenceType(rs.getString("legendeimweb")));
                         List<LegendEntryType> legend = map.getOtherLegend();
@@ -881,7 +887,7 @@ public class OerebController {
                     } catch (ParseException e) {
                         throw new IllegalStateException(e);
                     }
-                    SurfacePropertyTypeType flaecheGml=new Jts2GML32().convertSurface(flaeche);
+                    SurfacePropertyTypeType flaecheGml=jts2gml.convertSurface(flaeche);
                     rGeom.setSurface(flaecheGml);
                     OfficeType zustaendigeStelle=new OfficeType();
                     zustaendigeStelle.setName(createMultilingualTextType(rs.getString("ga_aname_de")));
@@ -897,6 +903,10 @@ public class OerebController {
         );
         extract.getRealEstate().getRestrictionOnLandownership().addAll(restrictions.values());
         concernedTopicsList.addAll(concernedTopics);
+    }
+    protected void setMapBBOX(MapType map, Envelope bbox) {
+        map.setMaxNS95(jts2gml.createPointPropertyType(new Coordinate(bbox.getMaxX(),bbox.getMaxY())));
+        map.setMinNS95(jts2gml.createPointPropertyType(new Coordinate(bbox.getMinX(),bbox.getMinY())));
     }
     HashMap<String,LawstatusType> statusCodes=null;
     private static final int MAP_DPI = 300;
@@ -928,7 +938,7 @@ public class OerebController {
         return null;
     }
 
-    private void setParcel(ExtractType extract, String egrid, Grundstueck parcel, boolean withGeometry) {
+    private void setParcel(ExtractType extract, String egrid, Grundstueck parcel,Envelope bbox, boolean withGeometry) {
         WKBWriter geomEncoder=new WKBWriter(2,ByteOrderValues.BIG_ENDIAN);
         byte geom[]=geomEncoder.write(parcel.getGeometrie());
         
@@ -976,11 +986,9 @@ public class OerebController {
         gs.setType(RealEstateTypeType.REAL_ESTATE);
         //gs.setMetadataOfGeographicalBaseData(value);
         // geometry must be set here (because xml2pdf requires it), even if is not request by service client
-        MultiSurfacePropertyTypeType geomGml=new Jts2GML32().convertMultiSurface(parcel.getGeometrie());
+        MultiSurfacePropertyTypeType geomGml=jts2gml.convertMultiSurface(parcel.getGeometrie());
         gs.setLimit(geomGml);
         
-        
-        Envelope bbox = getMapBBOX(parcel.getGeometrie());
         
         {
             // Planausschnitt 174 * 99 mm
@@ -996,7 +1004,7 @@ public class OerebController {
             }
             planForLandregister.setLayerIndex(0);
             planForLandregister.setLayerOpacity(0.6);
-            
+            setMapBBOX(planForLandregister,bbox);
         }
         {
             // Planausschnitt 174 * 99 mm
@@ -1010,6 +1018,7 @@ public class OerebController {
                 logger.error("failed to get wms image",e);
                 planForLandregisterMainPage.setImage(minimalImage);
             }
+            setMapBBOX(planForLandregisterMainPage,bbox);
         }
         extract.setRealEstate(gs);
         
