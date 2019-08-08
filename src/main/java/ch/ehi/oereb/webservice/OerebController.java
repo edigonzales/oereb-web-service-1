@@ -156,7 +156,7 @@ public class OerebController {
     private String dbschema;
     @Value("${oereb.cadastreAuthorityUrl}")
     private String plrCadastreAuthorityUrl;
-    @Value("${oereb.tmpdir}")
+    @Value("${oereb.tmpdir:${java.io.tmpdir}}")
     private String oerebTmpdir;
     
     @Value("${oereb.planForLandregisterMainPage}")
@@ -284,11 +284,7 @@ public class OerebController {
         GetExtractByIdResponse responseEle=new GetExtractByIdResponse(response);
         
         if(format.equals("pdf")) {
-            String tmpdir = oerebTmpdir;
-            if(tmpdir==null) {
-                tmpdir=System.getProperty("java.io.tmpdir");
-            }
-            java.io.File tmpFolder=new java.io.File(tmpdir,"oerebws"+Thread.currentThread().getId());
+            java.io.File tmpFolder=new java.io.File(oerebTmpdir,"oerebws"+Thread.currentThread().getId());
             if(!tmpFolder.exists()) {
                 tmpFolder.mkdirs();
             }
