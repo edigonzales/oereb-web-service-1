@@ -420,7 +420,7 @@ public class OerebController {
         extract.setCantonalLogo(getImage("ch."+extract.getRealEstate().getCanton().name().toLowerCase()));
         extract.setMunicipalityLogo(getImage("ch."+extract.getRealEstate().getFosNr()));
         // Text
-        setBaseData(extract);
+        setBaseData(extract,bfsNr);
         setGeneralInformation(extract);
         setExclusionOfLiability(extract);
         setGlossary(extract);
@@ -497,10 +497,20 @@ public class OerebController {
         extract.setGeneralInformation(createMultilingualMTextType(baseData,"content"));
     }
 
-    private void setBaseData(ExtractType extract) {
+    private void setBaseData(ExtractType extract,int bfsNr) {
+        java.sql.Date basedataDate=getBasedatadateOfMunicipality(bfsNr);
+        String basedataDateTxt=new java.text.SimpleDateFormat("dd.MM.yyyy").format(basedataDate);
         java.util.Map<String,Object> baseData=jdbcTemplate.queryForMap(
                 "SELECT content_de,content_fr,content_it,content_rm,content_en FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_BASEDATA);
-        extract.setBaseData(createMultilingualMTextType(baseData,"content"));
+        MultilingualMTextType nlsText = createMultilingualMTextType(baseData,"content");
+        for(LocalisedMTextType lText:nlsText.getLocalisedText()) {
+            String txt=lText.getText();
+            if(txt!=null) {
+                txt=txt.replace("${baseDataDate}", basedataDateTxt);
+                lText.setText(txt);
+            }
+        }
+        extract.setBaseData(nlsText);
     }
 
     private MultilingualMTextType createMultilingualMTextType(Map<String, Object> baseData,String prefix) {
@@ -1177,6 +1187,13 @@ public class OerebController {
 
     private List<String> getTopicsOfMunicipality(int bfsNr) {
         List<String> ret=jdbcTemplate.queryForList("SELECT avalue from "+getSchema()+"."+TABLE_OEREB_EXTRACTANNEX_V1_0_CODE+" as c JOIN "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_MUNICIPALITYWITHPLRC+" as m On c.oerb_xtnx_vpltywthplrc_themes=m.t_id WHERE m.municipality=?",String.class,bfsNr);
+        return ret;
+    }
+    private java.sql.Date getBasedatadateOfMunicipality(int bfsNr) {
+        java.sql.Date ret=jdbcTemplate.queryForObject("SELECT basedatadate from "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_MUNICIPALITYWITHPLRC+" WHERE municipality=?",java.sql.Date.class,bfsNr);
+        if(ret==null) {
+            ret=new java.sql.Date(System.currentTimeMillis());
+        }
         return ret;
     }
     private List<String> getAllTopicsOfThisCadastre() {
