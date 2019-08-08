@@ -31,6 +31,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -425,8 +426,8 @@ public class OerebController {
         setGlossary(extract);
         // Oereb-Amt
         OfficeType plrCadastreAuthority = new OfficeType();
-        WebReferenceType webRef=new WebReferenceType();
-        webRef.setValue(plrCadastreAuthorityUrl);
+        plrCadastreAuthority.setName(createMultilingualTextType("OEREB-Katasteramt"));
+        WebReferenceType webRef=createWebReferenceType(plrCadastreAuthorityUrl);
         plrCadastreAuthority.setOfficeAtWeb(webRef);
 
         setOffice(plrCadastreAuthority);
@@ -445,8 +446,13 @@ public class OerebController {
     }
 
     private void setOffice(OfficeType office) {
-        java.util.Map<String,Object> baseData=jdbcTemplate.queryForMap(
+        java.util.Map<String,Object> baseData=null;
+        try {
+            baseData=jdbcTemplate.queryForMap(
                 "SELECT aname_de,auid,line1,line2,street,anumber,postalcode,city FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_OFFICE+" WHERE officeatweb=?",office.getOfficeAtWeb().getValue());
+        }catch(EmptyResultDataAccessException ex) {
+            ; // ignore if no record found
+        }
         if(baseData!=null) {
             office.setName(createMultilingualTextType(baseData, "aname"));
             office.setUID((String) baseData.get("auid"));
