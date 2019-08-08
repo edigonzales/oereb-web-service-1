@@ -567,6 +567,9 @@ public class OerebController {
         return lTxt;
     }
     protected WebReferenceType createWebReferenceType(String url) {
+        if(url==null || url.trim().length()==0) {
+            return null;
+        }
         WebReferenceType ret=new WebReferenceType();
         ret.setValue(url);
         return ret;
