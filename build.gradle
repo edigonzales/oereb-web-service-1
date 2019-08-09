@@ -58,7 +58,8 @@ dependencies {
 		'com.sun.xml.bind:jaxb-xjc:2.2.7',
 		'com.sun.xml.bind:jaxb-impl:2.2.7'
     )
-    deployerJars "org.apache.maven.wagon:wagon-ftp:3.0.0"
+    deployerJars "org.apache.maven.wagon:wagon-ftp:3.3.3"
+    deployerJars "org.apache.maven.wagon:wagon-ssh:3.3.3"
 }
 
 repositories {
@@ -80,6 +81,7 @@ if(propFile.exists()){
 def git = System.getProperty('git',properties.get('git','git'))
 def repos_pwd = System.getProperty('repos_pwd',properties.get('repos_pwd','repos_pwd'))
 def repos_usr = System.getProperty('repos_usr',properties.get('repos_usr','repos_usr'))
+def repos_url = System.getProperty('repos_url',properties.get('repos_url','repos_url'))
 def python= System.getProperty('python',properties.get('python','python'))
 def rst2html= System.getProperty('rst2html',properties.get('rst2html','rst2html'))
 
@@ -166,7 +168,12 @@ task sourcesJar(type: Jar, dependsOn: classes) {
     from sourceSets.main.allSource
 }
 
-javadoc.failOnError = false
+javadoc{
+	failOnError = false
+	options.addBooleanOption 'Xdoclint:none', true
+	//options.addStringOption('Xdoclint:none', '-quiet')
+}
+
 task javadocJar(type: Jar, dependsOn: javadoc) {
     classifier = 'javadoc'
     from javadoc.destinationDir
@@ -203,7 +210,7 @@ uploadArchives {
     repositories {
         mavenDeployer {
         	configuration = configurations.deployerJars
-			repository(url: 'ftp://ftp.umleditor.org'){
+			repository(url: repos_url){
             	authentication(userName: repos_usr, password: repos_pwd)
             }
         }
