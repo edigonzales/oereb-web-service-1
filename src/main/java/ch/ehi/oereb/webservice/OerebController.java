@@ -927,8 +927,8 @@ public class OerebController {
     private static final int MAP_DPI = 300;
     private static final int MAP_WIDTH_MM = 174;
     private static final int MAP_WIDTH_PIXEL = (int) (MAP_DPI*MAP_WIDTH_MM/25.4);
-    private static final int MAP_HEIGTH_MM = 99;
-    private static final int MAP_HEIGHT_PIXEL = (int) (MAP_DPI*MAP_HEIGTH_MM/25.4);
+    private static final int MAP_HEIGHT_MM = 99;
+    private static final int MAP_HEIGHT_PIXEL = (int) (MAP_DPI*MAP_HEIGHT_MM/25.4);
     private LawstatusType mapLawstatus(String xtfTransferCode) {
         if(statusCodes==null) {
             statusCodes=new HashMap<String,LawstatusType>();
@@ -1041,11 +1041,11 @@ public class OerebController {
 
     private Envelope getMapBBOX(Geometry parcelGeom) {
         Envelope bbox = parcelGeom.getEnvelopeInternal();
-        bbox.expandBy(0.01);
         double width=bbox.getWidth();
         double height=bbox.getHeight();
-        double factor=Math.max(width/MAP_WIDTH_PIXEL,height/MAP_HEIGHT_PIXEL);
-        bbox.expandBy((MAP_WIDTH_PIXEL*factor-width)/2.0, (MAP_HEIGHT_PIXEL*factor-height)/2.0);
+        double factor=Math.max(width/MAP_WIDTH_MM,height/MAP_HEIGHT_MM);
+        bbox.expandBy((MAP_WIDTH_MM*factor-width)/2.0, (MAP_HEIGHT_MM*factor-height)/2.0);
+        bbox.expandBy(5.0*factor, 5.0*factor);
         return bbox;
     }
 
