@@ -147,6 +147,13 @@ task jaxb {
 }
 compileJava.dependsOn jaxb
 
+
+
+bootJar {
+	classifier = 'boot'
+}
+
+
 task usrdoc(type:Exec) {
 	def infile=new File(project.projectDir,'docs/oereb-web-service_de.rst')
 	def outfile=new File('docs/oereb-web-service_de.html')
