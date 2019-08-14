@@ -736,7 +736,7 @@ public class OerebController {
                     long e_id=rs.getLong("e_id");
                     long d_id=rs.getLong("d_id");
                     final String aussage_de = rs.getString("aussage_de");
-                    logger.info("g_id{} e_id {} aussage {} ",g_id,e_id,aussage_de);
+                    logger.info("g_id {} e_id {} aussage {} ",g_id,e_id,aussage_de);
                     
                     String topic=rs.getString("thema");
                     if(!concernedTopics.contains(topic)) {
@@ -816,7 +816,21 @@ public class OerebController {
                         rest.setMap(map);
                         rest.setPartInPercent(new BigDecimal(100)); // FIXME
                         rest.setAreaShare(1); // FIXME
-                        
+                        /*
+                            WITH RECURSIVE search_graph(id, link, data, depth, path, cycle) AS (
+                                SELECT g.id, g.link, g.data, 1,
+                                  ARRAY[g.id],
+                                  false
+                                FROM graph g
+                              UNION ALL
+                                SELECT g.id, g.link, g.data, sg.depth + 1,
+                                  path || g.id,
+                                  g.id = ANY(path)
+                                FROM graph g, search_graph sg
+                                WHERE g.id = sg.link AND NOT cycle
+                            )
+                            SELECT * FROM search_graph;
+                         */
                         String stmt="WITH RECURSIVE docs as (" + 
                                 "    select cast(null as bigint) as ursprung "
                                 +",ed.t_id"
@@ -831,6 +845,7 @@ public class OerebController {
                                 +",docuri1.docuri"
                                 +",ed.zustaendigestelle"
                                 +",ed.rechtsstatus"
+                                +",ARRAY[ed.t_id] as path, false as cycle"
                                 
                                 + " from "+getSchema()+"."+TABLE_OERBKRMFR_V1_1TRANSFERSTRUKTUR_HINWEISVORSCHRIFT+" as h  inner join "+getSchema()+"."+TABLE_OERBKRMVS_V1_1VORSCHRIFTEN_DOKUMENT+" as ed on h.vorschrift_oerbkrmvs_v1_1vorschriften_dokument=ed.t_id"
                                 + "      INNER JOIN (SELECT "+TABLE_OEREBKRM_V1_1_MULTILINGUALURI+".oerbkrmvs_vrftn_dkment_textimweb as docid,"+TABLE_OEREBKRM_V1_1_LOCALISEDURI+".atext as docuri FROM  "+getSchema()+"."+TABLE_OEREBKRM_V1_1_MULTILINGUALURI+" INNER JOIN "+getSchema()+"."+TABLE_OEREBKRM_V1_1_LOCALISEDURI+" ON  "+TABLE_OEREBKRM_V1_1_LOCALISEDURI+".oerbkrm_v1__mltlngluri_localisedtext = "+TABLE_OEREBKRM_V1_1_MULTILINGUALURI+".t_id WHERE alanguage='de') as docuri1 ON docuri1.docid=ed.t_id"
@@ -849,9 +864,10 @@ public class OerebController {
                                 +",docuri2.docuri"
                                 +",wd.zustaendigestelle"
                                 +",wd.rechtsstatus"
+                                +",path || wd.t_id as path, wd.t_id = ANY(path) as cycle"
                                 + " from "+getSchema()+"."+TABLE_OERBKRMVS_V1_1VORSCHRIFTEN_HINWEISWEITEREDOKUMENTE+" as w  inner join "+getSchema()+"."+TABLE_OERBKRMVS_V1_1VORSCHRIFTEN_DOKUMENT+" as wd on w.hinweis=wd.t_id"
                                 + "      INNER JOIN (SELECT "+TABLE_OEREBKRM_V1_1_MULTILINGUALURI+".oerbkrmvs_vrftn_dkment_textimweb as docid,"+TABLE_OEREBKRM_V1_1_LOCALISEDURI+".atext as docuri FROM  "+getSchema()+"."+TABLE_OEREBKRM_V1_1_MULTILINGUALURI+" INNER JOIN "+getSchema()+"."+TABLE_OEREBKRM_V1_1_LOCALISEDURI+" ON "+TABLE_OEREBKRM_V1_1_LOCALISEDURI+".oerbkrm_v1__mltlngluri_localisedtext = "+TABLE_OEREBKRM_V1_1_MULTILINGUALURI+".t_id WHERE alanguage='de') as docuri2 ON docuri2.docid=wd.t_id"
-                                +" INNER JOIN docs as s ON s.t_id = w.ursprung" + 
+                                +" INNER JOIN docs as s ON s.t_id = w.ursprung WHERE NOT cycle" + 
                                 ") SELECT * FROM docs";
                         List<DocumentBaseType> documents = rest.getLegalProvisions();
                         HashMap<Long,DocumentType> documentMap = new HashMap<Long,DocumentType>();
@@ -885,6 +901,9 @@ public class OerebController {
                                 }else {
                                     DocumentType parent=documentMap.get(parentid);
                                     parent.getReference().add(doc);
+                                }
+                                if(rs.getBoolean("cycle")) {
+                                    logger.error("document cycle t_id {}",rs.getString("path"));
                                 }
                             }
 
