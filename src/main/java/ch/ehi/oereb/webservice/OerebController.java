@@ -688,9 +688,9 @@ public class OerebController {
             List<String> queryTopics, List<String> concernedTopicsList) {
         // select schnitt parcelGeom/oerebGeom where restritctionTopic in queryTopic
         WKBWriter geomEncoder=new WKBWriter(2,ByteOrderValues.BIG_ENDIAN);
-        byte geom[]=geomEncoder.write(parcelGeom);
         PrecisionModel precisionModel=new PrecisionModel(1000.0);
         GeometryFactory geomFactory=new GeometryFactory(precisionModel);
+        byte filterGeom[]=geomEncoder.write(geomFactory.toGeometry(bbox));
         WKBReader geomDecoder=new WKBReader(geomFactory);
         
         String sqlStmt="SELECT " + 
@@ -727,6 +727,11 @@ public class OerebController {
         " WHERE ST_DWithin(ST_GeomFromWKB(?,2056),flaeche_lv95,0.1)";
         Set<String> concernedTopics=new HashSet<String>();
         Map<Long,RestrictionOnLandownershipType> restrictions=new HashMap<Long,RestrictionOnLandownershipType>();
+        Map<Long,Long> restriction2mapid=new HashMap<Long,Long>();
+        Set<Long> concernedRestrictions=new HashSet<Long>();
+        Map<Long,List<LegendEntryType>> legends=new HashMap<Long,List<LegendEntryType>>();
+        Map<Long,Set<QualifiedCode>> otherLegendCodesPerRestriction=new HashMap<Long,Set<QualifiedCode>>();
+        Map<Long,Set<QualifiedCode>> concernedCodesPerRestriction=new HashMap<Long,Set<QualifiedCode>>();
         jdbcTemplate.query(sqlStmt, new ResultSetExtractor<Object>() {
 
             @Override
@@ -748,6 +753,10 @@ public class OerebController {
                         RestrictionOnLandownershipType localRest=new RestrictionOnLandownershipType();
                         rest=localRest;
                         restrictions.put(e_id,rest);
+                        restriction2mapid.put(e_id,d_id);
+                        otherLegendCodesPerRestriction.put(e_id, new HashSet<QualifiedCode>());
+                        concernedCodesPerRestriction.put(e_id,new HashSet<QualifiedCode>());
+                        
                         rest.setInformation(createMultilingualMTextType(aussage_de));
                         rest.setLawstatus(mapLawstatus(rs.getString("e_rechtsstatus")));
                         ThemeType themeEle = createTheme(topic);
@@ -780,8 +789,10 @@ public class OerebController {
                         setMapBBOX(map,bbox);
                         
                         map.setLegendAtWeb(createWebReferenceType(rs.getString("legendeimweb")));
-                        List<LegendEntryType> legend = map.getOtherLegend();
-                        {
+                        List<LegendEntryType> legendEntries=legends.get(d_id);
+                        if(legendEntries==null){
+                            List<LegendEntryType> localLegendEntries=new ArrayList<LegendEntryType>();
+                            legendEntries=localLegendEntries;
                             String stmt="SELECT" + 
                                     "  symbol" + 
                                     "  ,legendetext_de" + 
@@ -798,24 +809,21 @@ public class OerebController {
                                 public void processRow(ResultSet rs) throws SQLException {
                                     final String l_code = rs.getString("artcode");
                                     final String l_codelist = rs.getString("artcodeliste");
-                                    if(l_code.equals(typeCode) && l_codelist.equals(typeCodelist)) {
-                                        localRest.setSymbol(rs.getBytes("symbol"));
-                                    }else {
-                                        LegendEntryType l=new LegendEntryType();
-                                        l.setLegendText(createMultilingualTextType(rs.getString("legendetext_de")));
-                                        l.setTheme(createTheme(rs.getString("thema")));
-                                        l.setSubTheme(rs.getString("subthema"));
-                                        l.setSymbol(rs.getBytes("symbol"));
-                                        l.setTypeCode(l_code);
-                                        l.setTypeCodelist(l_codelist);
-                                        legend.add(l);
-                                    }
+                                    LegendEntryType l=new LegendEntryType();
+                                    l.setLegendText(createMultilingualTextType(rs.getString("legendetext_de")));
+                                    l.setTheme(createTheme(rs.getString("thema")));
+                                    l.setSubTheme(rs.getString("subthema"));
+                                    l.setSymbol(rs.getBytes("symbol"));
+                                    l.setTypeCode(l_code);
+                                    l.setTypeCodelist(l_codelist);
+                                    localLegendEntries.add(l);
                                 }
                             },d_id);
+                            legends.put(d_id,legendEntries);
                         }
+                        List<LegendEntryType> legend = map.getOtherLegend();
+                        rest.setSymbol(getSymbol(legendEntries,typeCodelist,typeCode));
                         rest.setMap(map);
-                        rest.setPartInPercent(new BigDecimal(100)); // FIXME
-                        rest.setAreaShare(1); // FIXME
                         /*
                             WITH RECURSIVE search_graph(id, link, data, depth, path, cycle) AS (
                                 SELECT g.id, g.link, g.data, 1,
@@ -912,32 +920,75 @@ public class OerebController {
 
                     }
                    
-                    GeometryType rGeom=new GeometryType();
-                    rGeom.setLawstatus(mapLawstatus(rs.getString("g_rechtsstatus")));
-                    rGeom.setMetadataOfGeographicalBaseData(rs.getString("metadatengeobasisdaten"));
+                    Set<QualifiedCode> otherLegendCodes=otherLegendCodesPerRestriction.get(e_id);
+                    Set<QualifiedCode> concernedCodes=concernedCodesPerRestriction.get(e_id);
+                    QualifiedCode thisCode=new QualifiedCode(rest.getTypeCodelist(),rest.getTypeCode());
+                    
                     Polygon flaeche=null;
                     try {
                         flaeche = (Polygon) geomDecoder.read(rs.getBytes("flaeche"));
                     } catch (ParseException e) {
                         throw new IllegalStateException(e);
                     }
-                    SurfacePropertyTypeType flaecheGml=jts2gml.convertSurface(flaeche);
-                    rGeom.setSurface(flaecheGml);
-                    OfficeType zustaendigeStelle=new OfficeType();
-                    zustaendigeStelle.setName(createMultilingualTextType(rs.getString("ga_aname_de")));
-                    zustaendigeStelle.setOfficeAtWeb(createWebReferenceType(rs.getString("ga_amtimweb")));
-                    zustaendigeStelle.setUID(rs.getString("ga_auid"));
-                    rGeom.setResponsibleOffice(zustaendigeStelle);
-                    rest.getGeometry().add(rGeom);
+                    Geometry intersection=parcelGeom.intersection(flaeche);
+                    if(intersection.isEmpty()) {
+                        if(!concernedCodes.contains(thisCode)) {
+                            otherLegendCodes.add(thisCode);
+                        }
+                    }else {
+                        concernedRestrictions.add(e_id);
+                        concernedCodes.add(thisCode);
+                        otherLegendCodes.remove(thisCode);
+                        rest.setPartInPercent(new BigDecimal(100)); // FIXME
+                        rest.setAreaShare(1); // FIXME
+                        
+                        SurfacePropertyTypeType flaecheGml=jts2gml.convertSurface(flaeche);
+                        GeometryType rGeom=new GeometryType();
+                        rGeom.setLawstatus(mapLawstatus(rs.getString("g_rechtsstatus")));
+                        rGeom.setMetadataOfGeographicalBaseData(rs.getString("metadatengeobasisdaten"));
+                        rGeom.setSurface(flaecheGml);
+                        OfficeType zustaendigeStelle=new OfficeType();
+                        zustaendigeStelle.setName(createMultilingualTextType(rs.getString("ga_aname_de")));
+                        zustaendigeStelle.setOfficeAtWeb(createWebReferenceType(rs.getString("ga_amtimweb")));
+                        zustaendigeStelle.setUID(rs.getString("ga_auid"));
+                        rGeom.setResponsibleOffice(zustaendigeStelle);
+                        rest.getGeometry().add(rGeom);
+                        
+                    }
+                    
                 }
                 return null;
             }
             
-        },geom
+        },filterGeom
         );
-        extract.getRealEstate().getRestrictionOnLandownership().addAll(restrictions.values());
+        
+        for(long e_id:concernedRestrictions) {
+            RestrictionOnLandownershipType rest=restrictions.get(e_id);
+            long d_id=restriction2mapid.get(e_id);
+            MapType map=rest.getMap();
+            Set<QualifiedCode> otherLegendCodes=otherLegendCodesPerRestriction.get(e_id);
+            List<LegendEntryType> legendEntries = legends.get(d_id);
+            for(LegendEntryType entry:legendEntries) {
+                QualifiedCode otherCode=new QualifiedCode(entry.getTypeCodelist(),entry.getTypeCode());
+                if(otherLegendCodes.contains(otherCode)) {
+                    map.getOtherLegend().add(entry);
+                }
+            }
+            extract.getRealEstate().getRestrictionOnLandownership().add(rest);
+        }
+        
         concernedTopicsList.addAll(concernedTopics);
     }
+    protected byte[] getSymbol(List<LegendEntryType> legendEntries, String typeCodelist, String typeCode) {
+        for(LegendEntryType entry:legendEntries) {
+            if(typeCodelist.equals(entry.getTypeCodelist()) && typeCode.equals(entry.getTypeCode())) {
+                return entry.getSymbol();
+            }
+        }
+        return null;
+    }
+
     protected void setMapBBOX(MapType map, Envelope bbox) {
         map.setMaxNS95(jts2gml.createPointPropertyType(new Coordinate(bbox.getMaxX(),bbox.getMaxY())));
         map.setMinNS95(jts2gml.createPointPropertyType(new Coordinate(bbox.getMinX(),bbox.getMinY())));
