@@ -3,6 +3,7 @@ package ch.ehi.oereb.webservice;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.sql.ResultSet;
@@ -692,6 +693,7 @@ public class OerebController {
         GeometryFactory geomFactory=new GeometryFactory(precisionModel);
         byte filterGeom[]=geomEncoder.write(geomFactory.toGeometry(bbox));
         WKBReader geomDecoder=new WKBReader(geomFactory);
+        double parcelArea=parcelGeom.getArea();
         
         String sqlStmt="SELECT " + 
         "g.t_id as g_id," + 
@@ -939,8 +941,9 @@ public class OerebController {
                         concernedRestrictions.add(e_id);
                         concernedCodes.add(thisCode);
                         otherLegendCodes.remove(thisCode);
-                        rest.setPartInPercent(new BigDecimal(100)); // FIXME
-                        rest.setAreaShare(1); // FIXME
+                        double area=intersection.getArea();
+                        rest.setPartInPercent(new BigDecimal(Math.round(1000.0/parcelArea*area)).movePointLeft(1));
+                        rest.setAreaShare((int)Math.round(area)); 
                         
                         SurfacePropertyTypeType flaecheGml=jts2gml.convertSurface(flaeche);
                         GeometryType rGeom=new GeometryType();
