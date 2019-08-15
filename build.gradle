@@ -123,7 +123,7 @@ task jaxb {
     System.setProperty('javax.xml.accessExternalSchema', 'all')
     inputs.files fileTree(dir: 'src/main/xsd', include: ['*.xsd'])
     inputs.files fileTree(dir: 'src/main/xjb', include: ['*.xjb'])
-    outputs.dir "$generatedXjcSources"
+    outputs.files fileTree(dir: "$generatedXjcSources")
     
     doLast {
         mkdir "$generatedXjcSources"
