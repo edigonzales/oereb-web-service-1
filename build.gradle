@@ -148,10 +148,14 @@ task jaxb {
 compileJava.dependsOn jaxb
 
 
+jar {
+	enabled = true
+}
 
 bootJar {
 	classifier = 'boot'
 }
+
 
 
 task usrdoc(type:Exec) {
@@ -169,7 +173,6 @@ task usrdoc(type:Exec) {
 
 
 
-// Bintray / jcenter
 task sourcesJar(type: Jar, dependsOn: classes) {
     classifier = 'sources'
     from sourceSets.main.allSource
