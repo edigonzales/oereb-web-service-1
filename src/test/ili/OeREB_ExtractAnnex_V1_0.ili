@@ -4,7 +4,7 @@ INTERLIS 2.3;
  */
 MODEL OeREB_ExtractAnnex_V1_0 (de)
 AT "mailto:ce@eisenhutinformatik.ch"
-VERSION "2019-08-15"  =
+VERSION "2019-08-29"  =
   IMPORTS OeREBKRM_V1_1,CHAdminCodes_V1,LocalisationCH_V1,CatalogueObjects_V1;
 
     DOMAIN
@@ -48,6 +48,12 @@ VERSION "2019-08-15"  =
 		   */
 		  municipality : MANDATORY CHAdminCodes_V1.CHMunicipalityCode;
 		  /** Thema / SubThema 
+		   * Bundesthema:
+           *   value=Nutzungsplanung
+           * Kantonales Subthema zu einem Bundesthema:
+           *   value=ch.so.Nutzungsplanung.CantonalBuildingLines
+           * Kantonales Thema (kein Subthema zu einem Bundesthema): 
+           *   value=ch.so.Einzelschutz
 		   */
 		  themes : BAG OF Code_;
 		  /** Stand der Grundlagedaten z.B. der AV
