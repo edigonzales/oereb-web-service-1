@@ -9,6 +9,8 @@ public class Grundstueck {
     private String art;
     private double flaechenmas;
     private Geometry geometrie;
+    private String gbSubKreis;
+    private int bfsNr;
     public String getNummer() {
         return nummer;
     }
@@ -45,5 +47,16 @@ public class Grundstueck {
     public void setGeometrie(Geometry geometrie) {
         this.geometrie = geometrie;
     }
-
+    public String getGbSubKreis() {
+        return gbSubKreis;
+    }
+    public void setGbSubKreis(String gbSubKreis) {
+        this.gbSubKreis = gbSubKreis;
+    }
+    public int getBfsNr() {
+        return bfsNr;
+    }
+    public void setBfsNr(int bfsNr) {
+        this.bfsNr = bfsNr;
+    }
 }

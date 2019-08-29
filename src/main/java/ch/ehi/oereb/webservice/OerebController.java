@@ -279,7 +279,13 @@ public class OerebController {
         if(parcel==null) {
             return new ResponseEntity<Object>(HttpStatus.NO_CONTENT);
         }
-        Extract extract=createExtract(egrid,parcel,true,lang,topics,withImages==null?false:true);
+        java.sql.Date basedataDate=getBasedatadateOfMunicipality(parcel.getBfsNr());
+        if(basedataDate==null) {
+            // non unlocked municipality
+            return new ResponseEntity<Object>(HttpStatus.NO_CONTENT);
+        }
+
+        Extract extract=createExtract(egrid,parcel,basedataDate,true,lang,topics,withImages==null?false:true);
         
         GetExtractByIdResponseType response=new GetExtractByIdResponseType();
         response.setExtract(extract);
@@ -378,7 +384,7 @@ public class OerebController {
         return new GetVersionsResponse(ret);
     }
     
-    private Extract createExtract(String egrid, Grundstueck parcel, boolean withGeometry, String lang, String requestedTopicsAsText, boolean withImages) {
+    private Extract createExtract(String egrid, Grundstueck parcel, java.sql.Date basedataDate,boolean withGeometry, String lang, String requestedTopicsAsText, boolean withImages) {
         ExtractType extract=new ExtractType();
         extract.setIsReduced(true);
         XMLGregorianCalendar today=null;
@@ -421,7 +427,8 @@ public class OerebController {
         extract.setCantonalLogo(getImage("ch."+extract.getRealEstate().getCanton().name().toLowerCase()));
         extract.setMunicipalityLogo(getImage("ch."+extract.getRealEstate().getFosNr()));
         // Text
-        setBaseData(extract,bfsNr);
+
+        setBaseData(extract,basedataDate);
         setGeneralInformation(extract);
         setExclusionOfLiability(extract);
         setGlossary(extract);
@@ -498,8 +505,7 @@ public class OerebController {
         extract.setGeneralInformation(createMultilingualMTextType(baseData,"content"));
     }
 
-    private void setBaseData(ExtractType extract,int bfsNr) {
-        java.sql.Date basedataDate=getBasedatadateOfMunicipality(bfsNr);
+    private void setBaseData(ExtractType extract,java.sql.Date basedataDate) {
         String basedataDateTxt=new java.text.SimpleDateFormat("dd.MM.yyyy").format(basedataDate);
         java.util.Map<String,Object> baseData=jdbcTemplate.queryForMap(
                 "SELECT content_de,content_fr,content_it,content_rm,content_en FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_BASEDATA);
@@ -642,6 +648,13 @@ public class OerebController {
         Geometry multiPolygon=geomFactory.createMultiPolygon(polygons);
         Grundstueck gs=gslist.get(0);
         gs.setGeometrie(multiPolygon);
+        
+        // grundbuchkreis
+        java.util.Map<String,Object> gbKreis=jdbcTemplate.queryForMap(
+                "SELECT aname,bfsnr FROM "+getSchema()+"."+TABLE_SO_G_V_0180822GRUNDBUCHKREISE_GRUNDBUCHKREIS+" WHERE nbident=?",gs.getNbident());
+        gs.setGbSubKreis((String)gbKreis.get("aname"));
+        gs.setBfsNr((Integer)gbKreis.get("bfsnr"));
+        
         return gs;
     }
     private Geometry getParcelGeometryByEgrid(String egrid) {
@@ -1053,39 +1066,12 @@ public class OerebController {
         gs.setCanton(CantonCodeType.fromValue(canton));
         gs.setIdentDN(nbident);
         gs.setNumber(parcel.getNummer());
-        if(false) {
-            List<Object[]> gslist=jdbcTemplate.query(
-                    "SELECT aname,bfsnr FROM "+getSchema()+".dm01vch24lv95dgemeindegrenzen_gemeinde g LEFT JOIN "+getSchema()+".dm01vch24lv95dgemeindegrenzen_gemeindegrenze l ON g.t_id=l.gemeindegrenze_von WHERE ST_Intersects(l.geometrie,ST_GeomFromWKB(?,2056))", new RowMapper<Object[]>() {
-                        
-                        @Override
-                        public Object[] mapRow(ResultSet rs, int rowNum) throws SQLException {
-                            Object ret[]=new Object[2];
-                            ret[0]=rs.getString(1);
-                            ret[1]=rs.getInt(2);
-                            return ret;
-                        }
-
-                        
-                    },geom);
-            if(gslist==null || gslist.isEmpty()) {
-                return;
-            }
-            String gemeindename=(String) gslist.get(0)[0];
-            int bfsnr=(Integer) gslist.get(0)[1];
-            gs.setFosNr(bfsnr);
-            gs.setMunicipality(gemeindename);
-            
-        }else {
-            // grundbuchkreis
-            java.util.Map<String,Object> gbKreis=jdbcTemplate.queryForMap(
-                    "SELECT aname,bfsnr FROM "+getSchema()+"."+TABLE_SO_G_V_0180822GRUNDBUCHKREISE_GRUNDBUCHKREIS+" WHERE nbident=?",nbident);
-            gs.setSubunitOfLandRegister((String)gbKreis.get("aname"));
-            gs.setFosNr((Integer)gbKreis.get("bfsnr"));
-            // gemeindename
-            String gemeindename=jdbcTemplate.queryForObject(
-                    "SELECT aname FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DGEMEINDEGRENZEN_GEMEINDE+" WHERE bfsnr=?",String.class,gs.getFosNr());
-            gs.setMunicipality(gemeindename);
-        }
+        gs.setSubunitOfLandRegister(parcel.getGbSubKreis());
+        gs.setFosNr(parcel.getBfsNr());
+        // gemeindename
+        String gemeindename=jdbcTemplate.queryForObject(
+                "SELECT aname FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DGEMEINDEGRENZEN_GEMEINDE+" WHERE bfsnr=?",String.class,gs.getFosNr());
+        gs.setMunicipality(gemeindename);
         gs.setLandRegistryArea((int)parcel.getFlaechenmas());
         gs.setType(RealEstateTypeType.REAL_ESTATE);
         //gs.setMetadataOfGeographicalBaseData(value);
@@ -1279,7 +1265,13 @@ public class OerebController {
         return ret;
     }
     private java.sql.Date getBasedatadateOfMunicipality(int bfsNr) {
-        java.sql.Date ret=jdbcTemplate.queryForObject("SELECT basedatadate from "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_MUNICIPALITYWITHPLRC+" WHERE municipality=?",java.sql.Date.class,bfsNr);
+        java.sql.Date ret=null;
+        try {
+            ret=jdbcTemplate.queryForObject("SELECT basedatadate from "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_MUNICIPALITYWITHPLRC+" WHERE municipality=?",java.sql.Date.class,bfsNr);
+        }catch(EmptyResultDataAccessException ex) {
+            // a non-unlocked municipality has no entry
+            return null;
+        }
         if(ret==null) {
             ret=new java.sql.Date(System.currentTimeMillis());
         }
