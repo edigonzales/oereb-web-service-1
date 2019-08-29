@@ -678,11 +678,22 @@ public class OerebController {
         }
     }
 
-    private ThemeType createTheme(String themeCode) {
+    private ThemeType createTheme(String qualifiedThemeCode) {
         ThemeType themeEle=new ThemeType();
-        themeEle.setCode(themeCode);
-        themeEle.setText(getTopicText(themeCode));
+        themeEle.setCode(qualifiedThemeCode);
+        themeEle.setText(getTopicText(qualifiedThemeCode));
         return themeEle;
+    }
+    private String getQualifiedThemeCode(String themeCode,String subCode,String otherCode) {
+        String qualifiedThemeCode=null;
+        if(subCode==null && otherCode==null) {
+            qualifiedThemeCode=themeCode;
+        }else if(otherCode!=null) {
+            qualifiedThemeCode=otherCode;
+        }else{
+            qualifiedThemeCode="ch.so."+themeCode+"."+subCode;
+        }
+        return qualifiedThemeCode;
     }
 
     private void addRestrictions(ExtractType extract, Geometry parcelGeom,Envelope bbox,boolean withGeometry, boolean withImages,
@@ -745,10 +756,6 @@ public class OerebController {
                     final String aussage_de = rs.getString("aussage_de");
                     logger.info("g_id {} e_id {} aussage {} ",g_id,e_id,aussage_de);
                     
-                    String topic=rs.getString("thema");
-                    if(!concernedTopics.contains(topic)) {
-                        concernedTopics.add(topic);
-                    }
                     RestrictionOnLandownershipType rest=restrictions.get(e_id);
                     if(rest==null) {
                         
@@ -761,9 +768,17 @@ public class OerebController {
                         
                         rest.setInformation(createMultilingualMTextType(aussage_de));
                         rest.setLawstatus(mapLawstatus(rs.getString("e_rechtsstatus")));
-                        ThemeType themeEle = createTheme(topic);
+                        String subThema=rs.getString("subthema"); 
+                        String weiteresThema=rs.getString("weiteresthema");
+
+                        String topic=rs.getString("thema");
+                        String qtopic=getQualifiedThemeCode(topic,subThema,weiteresThema);
+                        if(!concernedTopics.contains(qtopic)) {
+                            concernedTopics.add(qtopic);
+                        }
+                        ThemeType themeEle = createTheme(qtopic);
                         rest.setTheme(themeEle);
-                        //rest.setSubTheme(value);
+                        rest.setSubTheme(subThema);
                         String typeCode=rs.getString("artcode"); 
                         String typeCodelist=rs.getString("artcodeliste"); 
                         rest.setTypeCode(typeCode);
@@ -813,7 +828,8 @@ public class OerebController {
                                     final String l_codelist = rs.getString("artcodeliste");
                                     LegendEntryType l=new LegendEntryType();
                                     l.setLegendText(createMultilingualTextType(rs.getString("legendetext_de")));
-                                    l.setTheme(createTheme(rs.getString("thema")));
+                                    String qualifiedThemeCode=getQualifiedThemeCode(rs.getString("thema"),rs.getString("subthema"),rs.getString("weiteresthema"));
+                                    l.setTheme(createTheme(qualifiedThemeCode));
                                     l.setSubTheme(rs.getString("subthema"));
                                     l.setSymbol(rs.getBytes("symbol"));
                                     l.setTypeCode(l_code);
