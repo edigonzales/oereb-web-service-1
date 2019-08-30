@@ -57,7 +57,9 @@ import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Envelope;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
+import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.MultiPolygon;
+import com.vividsolutions.jts.geom.Point;
 import com.vividsolutions.jts.geom.Polygon;
 import com.vividsolutions.jts.geom.PrecisionModel;
 import com.vividsolutions.jts.io.ByteOrderValues;
@@ -65,10 +67,10 @@ import com.vividsolutions.jts.io.ParseException;
 import com.vividsolutions.jts.io.WKBReader;
 import com.vividsolutions.jts.io.WKBWriter;
 
+import ch.ehi.oereb.schemas.gml._3_2.CurvePropertyTypeType;
 import ch.ehi.oereb.schemas.gml._3_2.MultiSurface;
 import ch.ehi.oereb.schemas.gml._3_2.MultiSurfacePropertyTypeType;
 import ch.ehi.oereb.schemas.gml._3_2.MultiSurfaceTypeType;
-import ch.ehi.oereb.schemas.gml._3_2.Point;
 import ch.ehi.oereb.schemas.gml._3_2.PointPropertyTypeType;
 import ch.ehi.oereb.schemas.gml._3_2.PointTypeType;
 import ch.ehi.oereb.schemas.gml._3_2.Pos;
@@ -750,9 +752,12 @@ public class OerebController {
         " INNER JOIN "+getSchema()+".oerbkrmfr_v1_1transferstruktur_darstellungsdienst as d ON e.darstellungsdienst = d.t_id" + 
         " INNER JOIN "+getSchema()+".oerbkrmvs_v1_1vorschriften_amt as ea ON e.zustaendigestelle = ea.t_id"+
         " INNER JOIN "+getSchema()+".oerbkrmvs_v1_1vorschriften_amt as ga ON g.zustaendigestelle = ga.t_id"+
-        " WHERE ST_DWithin(ST_GeomFromWKB(?,2056),flaeche_lv95,0.1)";
+        " WHERE ST_DWithin(ST_GeomFromWKB(?,2056),flaeche_lv95,0.1) OR ST_DWithin(ST_GeomFromWKB(?,2056),linie_lv95,0.1) OR ST_DWithin(ST_GeomFromWKB(?,2056),punkt_lv95,0.1)";
         Set<String> concernedTopics=new HashSet<String>();
         Map<Long,RestrictionOnLandownershipType> restrictions=new HashMap<Long,RestrictionOnLandownershipType>();
+        Map<Long,Integer> restrictionsPointCount=new HashMap<Long,Integer>();
+        Map<Long,Double> restrictionsLengthShare=new HashMap<Long,Double>();
+        Map<Long,Double> restrictionsAreaShare=new HashMap<Long,Double>();
         Map<Long,Long> restriction2mapid=new HashMap<Long,Long>();
         Set<Long> concernedRestrictions=new HashSet<Long>();
         Map<Long,List<LegendEntryType>> legends=new HashMap<Long,List<LegendEntryType>>();
@@ -956,12 +961,34 @@ public class OerebController {
                     QualifiedCode thisCode=new QualifiedCode(rest.getTypeCodelist(),rest.getTypeCode());
                     
                     Polygon flaeche=null;
-                    try {
-                        flaeche = (Polygon) geomDecoder.read(rs.getBytes("flaeche"));
-                    } catch (ParseException e) {
-                        throw new IllegalStateException(e);
+                    LineString linie=null;
+                    Point punkt=null;
+                    Geometry intersection=null;
+                    byte flaecheWkb[]=rs.getBytes("flaeche");
+                    byte linieWkb[]=rs.getBytes("linie");
+                    byte punktWkb[]=rs.getBytes("punkt");
+                    if(flaecheWkb!=null) {
+                        try {
+                            flaeche = (Polygon) geomDecoder.read(flaecheWkb);
+                        } catch (ParseException e) {
+                            throw new IllegalStateException(e);
+                        }
+                        intersection=parcelGeom.intersection(flaeche);
+                    }else if(linieWkb!=null) {
+                        try {
+                            linie = (LineString) geomDecoder.read(linieWkb);
+                        } catch (ParseException e) {
+                            throw new IllegalStateException(e);
+                        }
+                        intersection=parcelGeom.intersection(linie);
+                    }else if(punktWkb!=null) {
+                        try {
+                            punkt = (Point) geomDecoder.read(punktWkb);
+                        } catch (ParseException e) {
+                            throw new IllegalStateException(e);
+                        }
+                        intersection=parcelGeom.intersection(punkt);
                     }
-                    Geometry intersection=parcelGeom.intersection(flaeche);
                     if(intersection.isEmpty()) {
                         if(!concernedCodes.contains(thisCode)) {
                             otherLegendCodes.add(thisCode);
@@ -970,33 +997,78 @@ public class OerebController {
                         concernedRestrictions.add(e_id);
                         concernedCodes.add(thisCode);
                         otherLegendCodes.remove(thisCode);
-                        double area=intersection.getArea();
-                        rest.setPartInPercent(new BigDecimal(Math.round(1000.0/parcelArea*area)).movePointLeft(1));
-                        rest.setAreaShare((int)Math.round(area)); 
-                        
-                        SurfacePropertyTypeType flaecheGml=jts2gml.convertSurface(flaeche);
                         GeometryType rGeom=new GeometryType();
+                        if(flaeche!=null) {
+                            double area=intersection.getArea();
+                            Double areaSum=restrictionsAreaShare.get(e_id);
+                            if(areaSum==null) {
+                                areaSum=area;
+                            }else {
+                                areaSum=areaSum+area;
+                            }
+                            restrictionsAreaShare.put(e_id,areaSum);
+                            
+                            SurfacePropertyTypeType flaecheGml=jts2gml.convertSurface(flaeche);
+                            rGeom.setSurface(flaecheGml);
+                            
+                        }else if(linie!=null) {
+                            double length=intersection.getLength();
+                            Double lengthSum=restrictionsLengthShare.get(e_id);
+                            if(lengthSum==null) {
+                                lengthSum=length;
+                            }else {
+                                lengthSum=lengthSum+length;
+                            }
+                            restrictionsLengthShare.put(e_id,lengthSum);
+                            CurvePropertyTypeType linieGml=jts2gml.convertCurve(linie);
+                            rGeom.setLine(linieGml);
+                        }else if(punkt!=null) {
+                            Integer pointSum=restrictionsPointCount.get(e_id);
+                            if(pointSum==null) {
+                                pointSum=1;
+                            }else {
+                                pointSum=pointSum+1;
+                            }
+                            restrictionsPointCount.put(e_id,pointSum);
+                            PointPropertyTypeType pointGml=jts2gml.createPointPropertyType(punkt.getCoordinate());
+                            rGeom.setPoint(pointGml);
+                        }else {
+                            throw new IllegalStateException("no geometry");
+                        }
                         rGeom.setLawstatus(mapLawstatus(rs.getString("g_rechtsstatus")));
                         rGeom.setMetadataOfGeographicalBaseData(rs.getString("metadatengeobasisdaten"));
-                        rGeom.setSurface(flaecheGml);
                         OfficeType zustaendigeStelle=new OfficeType();
                         zustaendigeStelle.setName(createMultilingualTextType(rs.getString("ga_aname_de")));
                         zustaendigeStelle.setOfficeAtWeb(createWebReferenceType(rs.getString("ga_amtimweb")));
                         zustaendigeStelle.setUID(rs.getString("ga_auid"));
                         rGeom.setResponsibleOffice(zustaendigeStelle);
                         rest.getGeometry().add(rGeom);
-                        
                     }
                     
                 }
                 return null;
             }
             
-        },filterGeom
+        },filterGeom,filterGeom,filterGeom
         );
         
         for(long e_id:concernedRestrictions) {
             RestrictionOnLandownershipType rest=restrictions.get(e_id);
+            Double areaSum=restrictionsAreaShare.get(e_id);
+            Double lengthSum=restrictionsLengthShare.get(e_id);
+            Integer pointSum=restrictionsPointCount.get(e_id);
+            if(areaSum!=null) {
+                rest.setPartInPercent(new BigDecimal(Math.round(1000.0/parcelArea*areaSum)).movePointLeft(1));
+                rest.setAreaShare((int)Math.round(areaSum)); 
+            }else if(lengthSum!=null) {
+                rest.setLengthShare((int)Math.round(lengthSum)); 
+            }else if(pointSum!=null) {
+                rest.setNrOfPoints(pointSum);
+            }else {
+                throw new IllegalStateException("no share");
+            }
+            
+            
             long d_id=restriction2mapid.get(e_id);
             MapType map=rest.getMap();
             Set<QualifiedCode> otherLegendCodes=otherLegendCodesPerRestriction.get(e_id);

@@ -50,6 +50,20 @@ public class Jts2GML32 {
         polygon.setExterior(new Exterior(exteriorRingProperty));
         return new Polygon(polygon);
     }
+    public CurvePropertyTypeType convertCurve(com.vividsolutions.jts.geom.LineString jtsLine) {
+        CurvePropertyTypeType curveProperty = new CurvePropertyTypeType();
+        curveProperty.setAbstractCurve(createLineString(jtsLine));
+        return curveProperty;
+    }
+    
+    public LineString createLineString(com.vividsolutions.jts.geom.LineString jtsLineString) {
+        LineStringTypeType line=new LineStringTypeType();
+        for(com.vividsolutions.jts.geom.Coordinate jtsCoord:jtsLineString.getCoordinates()) {
+            Pos pos = createPos(jtsCoord);
+            line.getPosOrPointPropertyOrPointRep().add(pos);
+        }
+        return new LineString(line);
+    }
     public LinearRing createLinearRing(com.vividsolutions.jts.geom.LineString jtsLineString) {
         LinearRingTypeType ring=new LinearRingTypeType();
         for(com.vividsolutions.jts.geom.Coordinate jtsCoord:jtsLineString.getCoordinates()) {
