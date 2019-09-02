@@ -51,6 +51,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vividsolutions.jts.geom.Coordinate;
@@ -117,6 +118,7 @@ import ch.so.agi.oereb.pdf4oereb.Locale;
 @Controller
 public class OerebController {
     
+    private static final String TABLE_OERB_XTNX_V1_0ANNEX_MAPLAYERING = "oerb_xtnx_v1_0annex_maplayering";
     private static final String TABLE_OEREBKRM_V1_1_LOCALISEDURI = "oerebkrm_v1_1_localiseduri";
     private static final String TABLE_OEREBKRM_V1_1_MULTILINGUALURI = "oerebkrm_v1_1_multilingualuri";
     private static final String TABLE_OEREBKRM_V1_1CODELISTENTEXT_RECHTSSTATUSTXT = "oerebkrm_v1_1codelistentext_rechtsstatustxt";
@@ -819,8 +821,14 @@ public class OerebController {
                             logger.error("failed to get wms image",e);
                             map.setImage(minimalImage);
                         }
-                        map.setLayerIndex(1);
-                        map.setLayerOpacity(0.6);
+                        double layerOpacity[]=new double[1];
+                        Integer layerIndex=getLayerIndex(wmsUrl,layerOpacity);
+                        if(layerIndex==null) {
+                            layerIndex=0;
+                            layerOpacity[0]=0.6;
+                        }
+                        map.setLayerIndex(layerIndex);
+                        map.setLayerOpacity(layerOpacity[0]);
                         setMapBBOX(map,bbox);
                         
                         map.setLegendAtWeb(createWebReferenceType(rs.getString("legendeimweb")));
@@ -1164,8 +1172,14 @@ public class OerebController {
                 logger.error("failed to get wms image",e);
                 planForLandregister.setImage(minimalImage);
             }
-            planForLandregister.setLayerIndex(0);
-            planForLandregister.setLayerOpacity(0.6);
+            double layerOpacity[]=new double[1];
+            Integer layerIndex=getLayerIndex(oerebPlanForLandregister,layerOpacity);
+            if(layerIndex==null) {
+                layerIndex=0;
+                layerOpacity[0]=0.6;
+            }
+            planForLandregister.setLayerIndex(layerIndex);
+            planForLandregister.setLayerOpacity(layerOpacity[0]);
             setMapBBOX(planForLandregister,bbox);
         }
         {
@@ -1180,6 +1194,14 @@ public class OerebController {
                 logger.error("failed to get wms image",e);
                 planForLandregisterMainPage.setImage(minimalImage);
             }
+            double layerOpacity[]=new double[1];
+            Integer layerIndex=getLayerIndex(oerebPlanForLandregisterMainPage,layerOpacity);
+            if(layerIndex==null) {
+                layerIndex=0;
+                layerOpacity[0]=0.6;
+            }
+            planForLandregisterMainPage.setLayerIndex(layerIndex);
+            planForLandregisterMainPage.setLayerOpacity(layerOpacity[0]);
             setMapBBOX(planForLandregisterMainPage,bbox);
         }
         extract.setRealEstate(gs);
@@ -1274,6 +1296,24 @@ public class OerebController {
         String fixedWmsUrl = builder.build().toUriString();
         return fixedWmsUrl;
     }
+    private Integer getLayerIndex(String url, double[] layerOpacity) {
+        UriComponents builder = UriComponentsBuilder.fromUriString(url).build();
+        List<String> layers=new ArrayList<String>(builder.getQueryParams().get("LAYERS"));
+        layers.sort(null);
+        java.util.List<java.util.Map<String,Object>> wmsv=jdbcTemplate.queryForList(
+                "SELECT webservice,layerindex,layeropacity FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_MAPLAYERING);
+        for(java.util.Map<String,Object> wmsData:wmsv) {
+            UriComponents wmsUrlBuilder = UriComponentsBuilder.fromUriString((String)wmsData.get("webservice")).build();
+            List<String> wmsLayers=new ArrayList<String>(wmsUrlBuilder.getQueryParams().get("LAYERS"));
+            wmsLayers.sort(null);
+            if(wmsLayers.equals(layers)) {
+                layerOpacity[0]=((BigDecimal) wmsData.get("layeropacity")).doubleValue();
+                return (Integer) wmsData.get("layerindex");
+            }
+        }
+        return null;
+    }
+
 
 
     private List<String> parseTopics(String requestedTopicsAsText) {
