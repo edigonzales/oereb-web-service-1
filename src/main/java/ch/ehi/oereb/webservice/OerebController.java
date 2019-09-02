@@ -137,6 +137,8 @@ public class OerebController {
     private static final String TABLE_OERB_XTNX_V1_0ANNEX_OFFICE = "oerb_xtnx_v1_0annex_office";
     private static final String TABLE_OERB_XTNX_V1_0ANNEX_LOGO = "oerb_xtnx_v1_0annex_logo";
     private static final String TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_LIEGENSCHAFT = "dm01vch24lv95dliegenschaften_liegenschaft";
+    private static final String TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_SELBSTRECHT = "dm01vch24lv95dliegenschaften_selbstrecht";
+    private static final String TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_BERGWERK = "dm01vch24lv95dliegenschaften_bergwerk";
     private static final String TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_GRUNDSTUECK = "dm01vch24lv95dliegenschaften_grundstueck";
     private static final String TABLE_OEREBKRM_V1_1CODELISTENTEXT_THEMATXT = "oerebkrm_v1_1codelistentext_thematxt";
     private static final String TABLE_OEREB_EXTRACTANNEX_V1_0_CODE = "oereb_extractannex_v1_0_code_";
@@ -246,7 +248,11 @@ public class OerebController {
         // SELECT g.egris_egrid,g.nummer,g.nbident FROM oereb.dm01vch24lv95dliegenschaften_grundstueck g LEFT JOIN oereb.dm01vch24lv95dliegenschaften_liegenschaft l ON l.liegenschaft_von=g.t_id WHERE ST_DWithin(ST_Transform(ST_GeomFromEWKT('SRID=4326;POINT( 7.94554 47.41277)'),2056),l.geometrie,1.0)
         GetEGRIDResponseType ret= new GetEGRIDResponseType();
         List<JAXBElement<String>[]> gsList=jdbcTemplate.query(
-                "SELECT egris_egrid,nummer,nbident FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_GRUNDSTUECK+" g LEFT JOIN "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_LIEGENSCHAFT+" l ON l.liegenschaft_von=g.t_id WHERE ST_DWithin(ST_Transform(?,2056),l.geometrie,1.0)", new RowMapper<JAXBElement<String>[]>() {
+                "SELECT egris_egrid,nummer,nbident FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_GRUNDSTUECK+" g"
+                        +" LEFT JOIN (SELECT liegenschaft_von as von, geometrie FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_LIEGENSCHAFT
+                             +" UNION SELECT selbstrecht_von as von,  geometrie FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_SELBSTRECHT
+                             +" UNION SELECT bergwerk_von as von,     geometrie FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_BERGWERK+") b ON b.von=g.t_id WHERE ST_DWithin(ST_Transform(?,2056),b.geometrie,1.0)"
+                , new RowMapper<JAXBElement<String>[]>() {
                     @Override
                     public JAXBElement<String>[] mapRow(ResultSet rs, int rowNum) throws SQLException {
                         JAXBElement<String> ret[]=new JAXBElement[3];
@@ -611,14 +617,29 @@ public class OerebController {
         PrecisionModel precisionModel=new PrecisionModel(1000.0);
         GeometryFactory geomFactory=new GeometryFactory(precisionModel);
         List<Grundstueck> gslist=jdbcTemplate.query(
-                "SELECT ST_AsBinary(geometrie),nummer,nbident,art,gesamteflaechenmass,flaechenmass FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_GRUNDSTUECK+" g LEFT JOIN "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_LIEGENSCHAFT+" l ON g.t_id=l.liegenschaft_von WHERE g.egris_egrid=?", new RowMapper<Grundstueck>() {
+                "SELECT ST_AsBinary(l.geometrie) as l_geometrie,ST_AsBinary(s.geometrie) as s_geometrie,ST_AsBinary(b.geometrie) as b_geometrie,nummer,nbident,art,gesamteflaechenmass,l.flaechenmass as l_flaechenmass,s.flaechenmass as s_flaechenmass,b.flaechenmass as b_flaechenmass FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_GRUNDSTUECK+" g"
+                        +" LEFT JOIN "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_LIEGENSCHAFT+" l ON g.t_id=l.liegenschaft_von "
+                        +" LEFT JOIN "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_SELBSTRECHT+" s ON g.t_id=s.selbstrecht_von"
+                        +" LEFT JOIN "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_BERGWERK+" b ON g.t_id=b.bergwerk_von"
+                        +" WHERE g.egris_egrid=?", new RowMapper<Grundstueck>() {
                     WKBReader decoder=new WKBReader(geomFactory);
                     
                     @Override
                     public Grundstueck mapRow(ResultSet rs, int rowNum) throws SQLException {
                         Geometry polygon=null;
+                        byte l_geometrie[]=rs.getBytes("l_geometrie");
+                        byte s_geometrie[]=rs.getBytes("s_geometrie");
+                        byte b_geometrie[]=rs.getBytes("b_geometrie");
                         try {
-                            polygon=decoder.read(rs.getBytes(1));
+                            if(l_geometrie!=null) {
+                                polygon=decoder.read(l_geometrie);
+                            }else if(s_geometrie!=null) {
+                                polygon=decoder.read(s_geometrie);
+                            }else if(b_geometrie!=null) {
+                                polygon=decoder.read(b_geometrie);
+                            }else {
+                                throw new IllegalStateException("no geometrie");
+                            }
                             if(polygon==null || polygon.isEmpty()) {
                                 return null;
                             }
@@ -628,12 +649,20 @@ public class OerebController {
                         Grundstueck ret=new Grundstueck();
                         ret.setGeometrie(polygon);
                         ret.setEgrid(egrid);
-                        ret.setNummer(rs.getString(2));
-                        ret.setNbident(rs.getString(3));
-                        ret.setArt(rs.getString(4));
-                        int f=rs.getInt(5);
+                        ret.setNummer(rs.getString("nummer"));
+                        ret.setNbident(rs.getString("nbident"));
+                        ret.setArt(rs.getString("art"));
+                        int f=rs.getInt("gesamteflaechenmass");
                         if(rs.wasNull()) {
-                            f=rs.getInt(6);
+                            if(l_geometrie!=null) {
+                                f=rs.getInt("l_flaechenmass");
+                            }else if(s_geometrie!=null) {
+                                f=rs.getInt("s_flaechenmass");
+                            }else if(b_geometrie!=null) {
+                                f=rs.getInt("b_flaechenmass");
+                            }else {
+                                throw new IllegalStateException("no geometrie");
+                            }
                         }
                         ret.setFlaechenmas(f);
                         return ret;
@@ -1153,7 +1182,20 @@ public class OerebController {
                 "SELECT aname FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DGEMEINDEGRENZEN_GEMEINDE+" WHERE bfsnr=?",String.class,gs.getFosNr());
         gs.setMunicipality(gemeindename);
         gs.setLandRegistryArea((int)parcel.getFlaechenmas());
-        gs.setType(RealEstateTypeType.REAL_ESTATE);
+        String gsArt=parcel.getArt();
+        if("Liegenschaft".equals(gsArt)) {
+            gs.setType(RealEstateTypeType.REAL_ESTATE);
+        }else if("SelbstRecht.Baurecht".equals(gsArt)) {
+            gs.setType(RealEstateTypeType.DISTINCT_AND_PERMANENT_RIGHTS_BUILDING_RIGHT);
+        }else if("SelbstRecht.Quellenrecht".equals(gsArt)) {
+            gs.setType(RealEstateTypeType.DISTINCT_AND_PERMANENT_RIGHTS_RIGHT_TO_SPRING_WATER);
+        }else if("SelbstRecht.Konzessionsrecht".equals(gsArt)) {
+            gs.setType(RealEstateTypeType.DISTINCT_AND_PERMANENT_RIGHTS_CONCESSION);
+        }else if("Bergwerk".equals(gsArt)) {
+            gs.setType(RealEstateTypeType.MINERAL_RIGHTS);
+        }else {
+            throw new IllegalStateException("unknown gsArt");
+        }
         //gs.setMetadataOfGeographicalBaseData(value);
         // geometry must be set here (because xml2pdf requires it), even if is not request by service client
         MultiSurfacePropertyTypeType geomGml=jts2gml.convertMultiSurface(parcel.getGeometrie());
