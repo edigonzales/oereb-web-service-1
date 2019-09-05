@@ -457,18 +457,34 @@ public class OerebController {
         // freigeschaltete Themen in der betroffenen Gemeinde
         List<String> availableTopics=getTopicsOfMunicipality(bfsNr);
         List<String> queryTopics=new ArrayList<String>();
-        queryTopics.addAll(availableTopics);
-        queryTopics.retainAll(requestedTopics);
+        for(String availableTopic:availableTopics) {
+            String mainTopic=stripSubTopic(availableTopic);
+            if(requestedTopics.contains(mainTopic) || requestedTopics.contains(availableTopic)) {
+                queryTopics.add(availableTopic);
+            }
+        }
         List<String> concernedTopics=new ArrayList<String>();
 
         addRestrictions(extract,parcelGeom,bbox,withGeometry,withImages,queryTopics,concernedTopics);
         // Themen
         List<String> themeWithoutData=new ArrayList<String>();
         themeWithoutData.addAll(requestedTopics);
-        themeWithoutData.removeAll(availableTopics);
+        for(String availableTopic:availableTopics) {
+            String mainTopic=stripSubTopic(availableTopic);
+            if(requestedTopics.contains(availableTopic)) {
+                themeWithoutData.remove(availableTopic);
+            }else if(requestedTopics.contains(mainTopic)) {
+                themeWithoutData.remove(mainTopic);
+            }
+        }
         List<String> notConcernedTopics=new ArrayList<String>();
-        notConcernedTopics.addAll(queryTopics);
-        notConcernedTopics.removeAll(concernedTopics);
+        notConcernedTopics.addAll(availableTopics);
+        for(String concernedTopic:concernedTopics) {
+            if(availableTopics.contains(concernedTopic)) {
+                notConcernedTopics.remove(concernedTopic);
+            }
+        }
+
         setThemes(extract.getConcernedTheme(), concernedTopics);
         setThemes(extract.getNotConcernedTheme(), notConcernedTopics);
         setThemes(extract.getThemeWithoutData(), themeWithoutData);
@@ -778,7 +794,7 @@ public class OerebController {
         }else if(otherCode!=null) {
             qualifiedThemeCode=otherCode;
         }else{
-            qualifiedThemeCode="ch.so."+themeCode+"."+subCode;
+            qualifiedThemeCode=subCode;
         }
         return qualifiedThemeCode;
     }
@@ -1426,12 +1442,17 @@ public class OerebController {
     private LocalisedTextType getTopicText(String code) {
         String title_de=null;
         // cantonal code?
-        if(code.indexOf('.')>-1) {
-            title_de=jdbcTemplate.queryForObject(
-                    "SELECT titel_de FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_THEMATXT+" WHERE othercode=?",String.class,code);
-        }else {
-            title_de=jdbcTemplate.queryForObject(
-                    "SELECT titel_de FROM "+getSchema()+"."+TABLE_OEREBKRM_V1_1CODELISTENTEXT_THEMATXT+" WHERE acode=?",String.class,code);
+        try {
+            if(code.indexOf('.')>-1) {
+                title_de=jdbcTemplate.queryForObject(
+                        "SELECT titel_de FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_THEMATXT+" WHERE othercode=?",String.class,code);
+            }else {
+                title_de=jdbcTemplate.queryForObject(
+                        "SELECT titel_de FROM "+getSchema()+"."+TABLE_OEREBKRM_V1_1CODELISTENTEXT_THEMATXT+" WHERE acode=?",String.class,code);
+            }
+        }catch(EmptyResultDataAccessException ex) {
+            logger.error("unknown topic code <{}>",code);
+            title_de="Thematitel";
         }
         LocalisedTextType ret=new LocalisedTextType();
         ret.setLanguage(LanguageCodeType.DE);
