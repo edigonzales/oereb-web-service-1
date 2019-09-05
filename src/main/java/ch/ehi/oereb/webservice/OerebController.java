@@ -9,6 +9,7 @@ import java.net.URISyntaxException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -143,6 +144,26 @@ public class OerebController {
     private static final String TABLE_OEREBKRM_V1_1CODELISTENTEXT_THEMATXT = "oerebkrm_v1_1codelistentext_thematxt";
     private static final String TABLE_OEREB_EXTRACTANNEX_V1_0_CODE = "oereb_extractannex_v1_0_code_";
 
+    private static final String FEDERAL_TOPICS[]=new String[] {
+            "Nutzungsplanung"
+            ,"ProjektierungszonenNationalstrassen"
+            ,"BaulinienNationalstrassen"
+            ,"ProjektierungszonenEisenbahnanlagen"
+            ,"BaulinienEisenbahnanlagen"
+            ,"ProjektierungszonenFlughafenanlagen"
+            ,"BaulinienFlughafenanlagen"
+            ,"SicherheitszonenplanFlughafen"
+            ,"BelasteteStandorte"
+            ,"BelasteteStandorteMilitaer"
+            ,"BelasteteStandorteZivileFlugplaetze"
+            ,"BelasteteStandorteOeffentlicherVerkehr"
+            ,"Grundwasserschutzzonen"
+            ,"Grundwasserschutzareale"
+            ,"Laermemfindlichkeitsstufen"
+            ,"Waldgrenzen"
+            ,"Waldabstandslinien"
+            
+    };
     protected static final String extractNS = "http://schemas.geo.admin.ch/V_D/OeREB/1.0/Extract";
     private static final LanguageCodeType DE = LanguageCodeType.DE;
     
@@ -361,8 +382,18 @@ public class OerebController {
         }
         GetCapabilitiesResponseType ret=new GetCapabilitiesResponseType();
         
-        // Liste der vorhandenen OeREB-Katasterthemen (inkl. Kantons- und Gemeindethemen);
-        setThemes(ret.getTopic(),getAllTopicsOfThisCadastre());
+        // Liste der vorhandenen OeREB-Katasterthemen 
+        //   inkl. Kantons- und Gemeindethemen
+        //   aber ohne Sub-Themen 
+        List<String> allTopicsOfThisCadastre = getAllTopicsOfThisCadastre();
+        Set<String> allTopics=new HashSet<String>();
+        for(String topic:allTopicsOfThisCadastre) {
+            String mainTopic=stripSubTopic(topic);
+            allTopics.add(mainTopic);
+        }
+        allTopicsOfThisCadastre=new ArrayList<String>(allTopics);
+        allTopicsOfThisCadastre.sort(null);
+        setThemes(ret.getTopic(),allTopicsOfThisCadastre);
         
         // Liste der vorhandenen Gemeinden;
         List<Integer> gemeinden=jdbcTemplate.query(
@@ -382,6 +413,16 @@ public class OerebController {
         ret.getCrs().add("2056");
         return new GetCapabilitiesResponse(ret);
     }
+    public static String stripSubTopic(String topic) {
+        String mainTopic=topic.replaceAll("\\A[a-z]{2}\\.[a-z]{2}\\.", "");
+        for(String federalTopic:FEDERAL_TOPICS){
+            if(mainTopic.startsWith(federalTopic)) {
+                return federalTopic;
+            }
+        }
+        return topic;
+    }
+
     @GetMapping("/versions/{format}")
     public @ResponseBody  GetVersionsResponse getVersions(@PathVariable String format) {
         if(!format.equals("xml")) {
@@ -1366,23 +1407,7 @@ public class OerebController {
         String topicsx[]=requestedTopicsAsText.split(";");
         for(String topic:topicsx) {
             if(topic.equals("ALL_FEDERAL") || topic.equals("ALL")) {
-                ret.add("Nutzungsplanung");
-                ret.add("ProjektierungszonenNationalstrassen");
-                ret.add("BaulinienNationalstrassen");
-                ret.add("ProjektierungszonenEisenbahnanlagen");
-                ret.add("BaulinienEisenbahnanlagen");
-                ret.add("ProjektierungszonenFlughafenanlagen");
-                ret.add("BaulinienFlughafenanlagen");
-                ret.add("SicherheitszonenplanFlughafen");
-                ret.add("BelasteteStandorte");
-                ret.add("BelasteteStandorteMilitaer");
-                ret.add("BelasteteStandorteZivileFlugplaetze");
-                ret.add("BelasteteStandorteOeffentlicherVerkehr");
-                ret.add("Grundwasserschutzzonen");
-                ret.add("Grundwasserschutzareale");
-                ret.add("Laermemfindlichkeitsstufen");
-                ret.add("Waldgrenzen");
-                ret.add("Waldabstandslinien");
+                ret.addAll(Arrays.asList(FEDERAL_TOPICS));
                 if(topic.equals("ALL")) {
                     java.util.List<String> baseDataList=jdbcTemplate.queryForList(
                             "SELECT othercode FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_THEMATXT,String.class);

@@ -4,7 +4,7 @@ INTERLIS 2.3;
  */
 MODEL OeREB_ExtractAnnex_V1_0 (de)
 AT "mailto:ce@eisenhutinformatik.ch"
-VERSION "2019-08-29"  =
+VERSION "2019-09-02"  =
   IMPORTS OeREBKRM_V1_1,CHAdminCodes_V1,LocalisationCH_V1,CatalogueObjects_V1;
 
     DOMAIN
@@ -22,7 +22,7 @@ VERSION "2019-08-29"  =
            *   otherCode=ch.so.Nutzungsplanung.CantonalBuildingLines
            *   In der Transferstruktur:
            *     Eigentumsbeschraenkung/Thema=Nutzungsplanung
-           *     Eigentumsbeschraenkung/SubThema=CantonalBuildingLines
+           *     Eigentumsbeschraenkung/SubThema=ch.so.Nutzungsplanung.CantonalBuildingLines
            * Kantonales Thema (kein Subthema zu einem Bundesthema): 
            *   Code=WeiteresThema
            *   otherCode=ch.so.Einzelschutz
