@@ -43,6 +43,8 @@ import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.SqlParameterValue;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.oxm.jaxb.Jaxb2Marshaller;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -193,6 +195,8 @@ public class OerebController {
     
     @Autowired
     JdbcTemplate jdbcTemplate;
+    @Autowired
+    NamedParameterJdbcTemplate jdbcParamTemplate; 
     
     @Autowired
     Jaxb2Marshaller marshaller;
@@ -860,7 +864,8 @@ public class OerebController {
         " INNER JOIN "+getSchema()+".oerbkrmfr_v1_1transferstruktur_darstellungsdienst as d ON e.darstellungsdienst = d.t_id" + 
         " INNER JOIN "+getSchema()+".oerbkrmvs_v1_1vorschriften_amt as ea ON e.zustaendigestelle = ea.t_id"+
         " INNER JOIN "+getSchema()+".oerbkrmvs_v1_1vorschriften_amt as ga ON g.zustaendigestelle = ga.t_id"+
-        " WHERE ST_DWithin(ST_GeomFromWKB(?,2056),flaeche_lv95,0.1) OR ST_DWithin(ST_GeomFromWKB(?,2056),linie_lv95,0.1) OR ST_DWithin(ST_GeomFromWKB(?,2056),punkt_lv95,0.1)";
+        " WHERE (ST_DWithin(ST_GeomFromWKB(:geom,2056),flaeche_lv95,0.1) OR ST_DWithin(ST_GeomFromWKB(:geom,2056),linie_lv95,0.1) OR ST_DWithin(ST_GeomFromWKB(:geom,2056),punkt_lv95,0.1)) "
+        + "AND (thema in (:topics) OR subthema in (:topics) or weiteresthema in (:topics))";
         Set<String> concernedTopics=new HashSet<String>();
         Map<Long,RestrictionOnLandownershipType> restrictions=new HashMap<Long,RestrictionOnLandownershipType>();
         Map<Long,Integer> restrictionsPointCount=new HashMap<Long,Integer>();
@@ -871,7 +876,11 @@ public class OerebController {
         Map<Long,List<LegendEntryType>> legends=new HashMap<Long,List<LegendEntryType>>();
         Map<Long,Set<QualifiedCode>> otherLegendCodesPerRestriction=new HashMap<Long,Set<QualifiedCode>>();
         Map<Long,Set<QualifiedCode>> concernedCodesPerRestriction=new HashMap<Long,Set<QualifiedCode>>();
-        jdbcTemplate.query(sqlStmt, new ResultSetExtractor<Object>() {
+        //final String[] queryTopicsArray = queryTopics.toArray(new String[queryTopics.size()]);
+        MapSqlParameterSource parameters = new MapSqlParameterSource();
+        parameters.addValue("topics", queryTopics);
+        parameters.addValue("geom", filterGeom);
+        jdbcParamTemplate.query(sqlStmt, parameters,new ResultSetExtractor<Object>() {
 
             @Override
             public Object extractData(ResultSet rs) throws SQLException, DataAccessException {
@@ -1186,9 +1195,8 @@ public class OerebController {
                 return null;
             }
             
-        },filterGeom,filterGeom,filterGeom
+        }
         );
-        
         for(long e_id:concernedRestrictions) {
             RestrictionOnLandownershipType rest=restrictions.get(e_id);
             Double areaSum=restrictionsAreaShare.get(e_id);
