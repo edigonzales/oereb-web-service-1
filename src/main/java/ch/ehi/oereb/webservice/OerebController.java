@@ -208,6 +208,8 @@ public class OerebController {
     private String plrCadastreAuthorityUrl;
     @Value("${oereb.tmpdir:${java.io.tmpdir}}")
     private String oerebTmpdir;
+    @Value("${oereb.minIntersection:0.001}")
+    private double minIntersection;
     
     @Value("${oereb.planForLandregisterMainPage}")
     private String oerebPlanForLandregisterMainPage;
@@ -1103,6 +1105,9 @@ public class OerebController {
                             throw new IllegalStateException(e);
                         }
                         intersection=parcelGeom.intersection(flaeche);
+                        if(!intersection.isEmpty() && intersection.getArea()<minIntersection) {
+                            intersection=geomFactory.createPolygon((Coordinate[])null);
+                        }
                     }else if(linieWkb!=null) {
                         try {
                             linie = (LineString) geomDecoder.read(linieWkb);
@@ -1110,6 +1115,9 @@ public class OerebController {
                             throw new IllegalStateException(e);
                         }
                         intersection=parcelGeom.intersection(linie);
+                        if(!intersection.isEmpty() &&  intersection.getLength()<minIntersection) {
+                            intersection=geomFactory.createLineString((Coordinate[])null);
+                        }
                     }else if(punktWkb!=null) {
                         try {
                             punkt = (Point) geomDecoder.read(punktWkb);
