@@ -144,7 +144,7 @@ public class OerebController {
     private static final String TABLE_OEREBKRM_V1_1CODELISTENTEXT_THEMATXT = "oerebkrm_v1_1codelistentext_thematxt";
     private static final String TABLE_OEREB_EXTRACTANNEX_V1_0_CODE = "oereb_extractannex_v1_0_code_";
 
-    private static final String FEDERAL_TOPICS[]=new String[] {
+    private static final String FEDERAL_TOPICS_DATA[]=new String[] {
             "Nutzungsplanung"
             ,"ProjektierungszonenNationalstrassen"
             ,"BaulinienNationalstrassen"
@@ -164,6 +164,27 @@ public class OerebController {
             ,"Waldabstandslinien"
             
     };
+    private static final String FEDERAL_TOPICS_EXTRACT[]=new String[] {
+            "LandUsePlans"
+            , "MotorwaysProjectPlaningZones"
+            , "MotorwaysBuildingLines"
+            , "RailwaysProjectPlanningZones"
+            , "RailwaysBuildingLines"
+            , "AirportsProjectPlanningZones"
+            , "AirportsBuildingLines"
+            , "AirportsSecurityZonePlans"
+            , "ContaminatedSites"
+            , "ContaminatedMilitarySites"
+            , "ContaminatedCivilAviationSites"
+            , "ContaminatedPublicTransportSites"
+            , "GroundwaterProtectionZones"
+            , "GroundwaterProtectionSites"
+            , "NoiseSensitivityLevels"
+            , "ForestPerimeters"
+            , "ForestDistanceLines"
+    };
+    private static final String WEITERES_THEMA = "WeiteresThema";
+    
     protected static final String extractNS = "http://schemas.geo.admin.ch/V_D/OeREB/1.0/Extract";
     private static final LanguageCodeType DE = LanguageCodeType.DE;
     
@@ -415,7 +436,7 @@ public class OerebController {
     }
     public static String stripSubTopic(String topic) {
         String mainTopic=topic.replaceAll("\\A[a-z]{2}\\.[a-z]{2}\\.", "");
-        for(String federalTopic:FEDERAL_TOPICS){
+        for(String federalTopic:FEDERAL_TOPICS_DATA){
             if(mainTopic.startsWith(federalTopic)) {
                 return federalTopic;
             }
@@ -775,18 +796,15 @@ public class OerebController {
         return polygon;
     }
     public void setThemes(final List<ThemeType> themes, List<String> topicCodes) {
-        for(String theme:topicCodes) {
-            ThemeType themeEle = createTheme(theme);
+        for(String topicCode:topicCodes) {
+            ThemeType themeEle1=new ThemeType();
+            themeEle1.setCode(mapTopicCodeFromDataToExtract(topicCode));
+            themeEle1.setText(getTopicText(topicCode));
+            ThemeType themeEle = themeEle1;
             themes.add(themeEle);
         }
     }
 
-    private ThemeType createTheme(String qualifiedThemeCode) {
-        ThemeType themeEle=new ThemeType();
-        themeEle.setCode(qualifiedThemeCode);
-        themeEle.setText(getTopicText(qualifiedThemeCode));
-        return themeEle;
-    }
     private String getQualifiedThemeCode(String themeCode,String subCode,String otherCode) {
         String qualifiedThemeCode=null;
         if(subCode==null && otherCode==null) {
@@ -882,7 +900,14 @@ public class OerebController {
                         if(!concernedTopics.contains(qtopic)) {
                             concernedTopics.add(qtopic);
                         }
-                        ThemeType themeEle = createTheme(qtopic);
+                        ThemeType themeEle1=new ThemeType();
+                        if(weiteresThema!=null) {
+                            themeEle1.setCode(weiteresThema);
+                        }else {
+                            themeEle1.setCode(mapTopicCodeFromDataToExtract(topic));
+                        }
+                        themeEle1.setText(getTopicText(qtopic));
+                        ThemeType themeEle = themeEle1;
                         rest.setTheme(themeEle);
                         rest.setSubTheme(subThema);
                         String typeCode=rs.getString("artcode"); 
@@ -940,8 +965,18 @@ public class OerebController {
                                     final String l_codelist = rs.getString("artcodeliste");
                                     LegendEntryType l=new LegendEntryType();
                                     l.setLegendText(createMultilingualTextType(rs.getString("legendetext_de")));
-                                    String qualifiedThemeCode=getQualifiedThemeCode(rs.getString("thema"),rs.getString("subthema"),rs.getString("weiteresthema"));
-                                    l.setTheme(createTheme(qualifiedThemeCode));
+                                    String legendTopic=rs.getString("thema");
+                                    String legendeWeiteresThema = rs.getString("weiteresthema");
+                                    String qualifiedThemeCode=getQualifiedThemeCode(legendTopic,rs.getString("subthema"),legendeWeiteresThema);
+                                    ThemeType themeEle=new ThemeType();
+                                    if(legendeWeiteresThema!=null) {
+                                        themeEle.setCode(legendeWeiteresThema);
+                                    }else {
+                                        themeEle.setCode(mapTopicCodeFromDataToExtract(legendTopic));
+                                    }
+                                    themeEle.setText(getTopicText(qualifiedThemeCode));
+                                    ThemeType legendThemeEle = themeEle;
+                                    l.setTheme(legendThemeEle);
                                     l.setSubTheme(rs.getString("subthema"));
                                     l.setSymbol(rs.getBytes("symbol"));
                                     l.setTypeCode(l_code);
@@ -1178,6 +1213,24 @@ public class OerebController {
         
         concernedTopicsList.addAll(concernedTopics);
     }
+    protected String mapTopicCodeFromDataToExtract(String topic) {
+        for(int i=0;i<FEDERAL_TOPICS_DATA.length;i++) {
+            if(topic.equals(FEDERAL_TOPICS_DATA[i])) {
+                return FEDERAL_TOPICS_EXTRACT[i];
+            }
+        }
+        return topic;
+    }
+    private String mapTopicCodeFromExtractToData(String topic) {
+        for(int i=0;i<FEDERAL_TOPICS_EXTRACT.length;i++) {
+            if(topic.equals(FEDERAL_TOPICS_EXTRACT[i])) {
+                return FEDERAL_TOPICS_DATA[i];
+            }
+        }
+        return topic;
+    }
+
+
     protected byte[] getSymbol(List<LegendEntryType> legendEntries, String typeCodelist, String typeCode) {
         for(LegendEntryType entry:legendEntries) {
             if(typeCodelist.equals(entry.getTypeCodelist()) && typeCode.equals(entry.getTypeCode())) {
@@ -1423,7 +1476,7 @@ public class OerebController {
         String topicsx[]=requestedTopicsAsText.split(";");
         for(String topic:topicsx) {
             if(topic.equals("ALL_FEDERAL") || topic.equals("ALL")) {
-                ret.addAll(Arrays.asList(FEDERAL_TOPICS));
+                ret.addAll(Arrays.asList(FEDERAL_TOPICS_DATA));
                 if(topic.equals("ALL")) {
                     java.util.List<String> baseDataList=jdbcTemplate.queryForList(
                             "SELECT othercode FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_THEMATXT,String.class);
@@ -1432,9 +1485,8 @@ public class OerebController {
                     }
                 }
             }else {
-                ret.add(topic);
+                ret.add(mapTopicCodeFromExtractToData(topic));
             }
-            
         }
         return new ArrayList<String>(ret);
     }
