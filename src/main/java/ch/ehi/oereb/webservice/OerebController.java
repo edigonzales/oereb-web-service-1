@@ -146,47 +146,6 @@ public class OerebController {
     private static final String TABLE_OEREBKRM_V1_1CODELISTENTEXT_THEMATXT = "oerebkrm_v1_1codelistentext_thematxt";
     private static final String TABLE_OEREB_EXTRACTANNEX_V1_0_CODE = "oereb_extractannex_v1_0_code_";
 
-    private static final String FEDERAL_TOPICS_DATA[]=new String[] {
-            "Nutzungsplanung"
-            ,"ProjektierungszonenNationalstrassen"
-            ,"BaulinienNationalstrassen"
-            ,"ProjektierungszonenEisenbahnanlagen"
-            ,"BaulinienEisenbahnanlagen"
-            ,"ProjektierungszonenFlughafenanlagen"
-            ,"BaulinienFlughafenanlagen"
-            ,"SicherheitszonenplanFlughafen"
-            ,"BelasteteStandorte"
-            ,"BelasteteStandorteMilitaer"
-            ,"BelasteteStandorteZivileFlugplaetze"
-            ,"BelasteteStandorteOeffentlicherVerkehr"
-            ,"Grundwasserschutzzonen"
-            ,"Grundwasserschutzareale"
-            ,"Laermemfindlichkeitsstufen"
-            ,"Waldgrenzen"
-            ,"Waldabstandslinien"
-            
-    };
-    private static final String FEDERAL_TOPICS_EXTRACT[]=new String[] {
-            "LandUsePlans"
-            , "MotorwaysProjectPlaningZones"
-            , "MotorwaysBuildingLines"
-            , "RailwaysProjectPlanningZones"
-            , "RailwaysBuildingLines"
-            , "AirportsProjectPlanningZones"
-            , "AirportsBuildingLines"
-            , "AirportsSecurityZonePlans"
-            , "ContaminatedSites"
-            , "ContaminatedMilitarySites"
-            , "ContaminatedCivilAviationSites"
-            , "ContaminatedPublicTransportSites"
-            , "GroundwaterProtectionZones"
-            , "GroundwaterProtectionSites"
-            , "NoiseSensitivityLevels"
-            , "ForestPerimeters"
-            , "ForestDistanceLines"
-    };
-    private static final String WEITERES_THEMA = "WeiteresThema";
-    
     protected static final String extractNS = "http://schemas.geo.admin.ch/V_D/OeREB/1.0/Extract";
     private static final LanguageCodeType DE = LanguageCodeType.DE;
     
@@ -412,13 +371,12 @@ public class OerebController {
         // Liste der vorhandenen OeREB-Katasterthemen 
         //   inkl. Kantons- und Gemeindethemen
         //   aber ohne Sub-Themen 
-        List<String> allTopicsOfThisCadastre = getAllTopicsOfThisCadastre();
-        Set<String> allTopics=new HashSet<String>();
-        for(String topic:allTopicsOfThisCadastre) {
-            String mainTopic=stripSubTopic(topic);
-            allTopics.add(mainTopic);
+        List<TopicCode> allTopicsOfThisCadastre = getAllTopicsOfThisCadastre();
+        Set<TopicCode> allTopics=new HashSet<TopicCode>();
+        for(TopicCode topic:allTopicsOfThisCadastre) {
+            allTopics.add(topic.getMainTopic());
         }
-        allTopicsOfThisCadastre=new ArrayList<String>(allTopics);
+        allTopicsOfThisCadastre=new ArrayList<TopicCode>(allTopics);
         allTopicsOfThisCadastre.sort(null);
         setThemes(ret.getTopic(),allTopicsOfThisCadastre);
         
@@ -439,15 +397,6 @@ public class OerebController {
         // Liste der unterstuetzten CRS.
         ret.getCrs().add("2056");
         return new GetCapabilitiesResponse(ret);
-    }
-    public static String stripSubTopic(String topic) {
-        String mainTopic=topic.replaceAll("\\A[a-z]{2}\\.[a-z]{2}\\.", "");
-        for(String federalTopic:FEDERAL_TOPICS_DATA){
-            if(mainTopic.startsWith(federalTopic)) {
-                return federalTopic;
-            }
-        }
-        return topic;
     }
 
     @GetMapping("/versions/{format}")
@@ -475,38 +424,38 @@ public class OerebController {
         }
         extract.setCreationDate(today);
         extract.setExtractIdentifier(UUID.randomUUID().toString());
-        List<String> requestedTopics=parseTopics(requestedTopicsAsText);
+        List<TopicCode> requestedTopics=parseTopics(requestedTopicsAsText);
         // Grundstueck
         final Geometry parcelGeom = parcel.getGeometrie();
         Envelope bbox = getMapBBOX(parcelGeom);
         setParcel(extract,egrid,parcel,bbox,withGeometry);
         int bfsNr=extract.getRealEstate().getFosNr();
         // freigeschaltete Themen in der betroffenen Gemeinde
-        List<String> availableTopics=getTopicsOfMunicipality(bfsNr);
-        List<String> queryTopics=new ArrayList<String>();
-        for(String availableTopic:availableTopics) {
-            String mainTopic=stripSubTopic(availableTopic);
+        List<TopicCode> availableTopics=getTopicsOfMunicipality(bfsNr);
+        List<TopicCode> queryTopics=new ArrayList<TopicCode>();
+        for(TopicCode availableTopic:availableTopics) {
+            TopicCode mainTopic=availableTopic.getMainTopic();
             if(requestedTopics.contains(mainTopic) || requestedTopics.contains(availableTopic)) {
                 queryTopics.add(availableTopic);
             }
         }
-        List<String> concernedTopics=new ArrayList<String>();
+        List<TopicCode> concernedTopics=new ArrayList<TopicCode>();
 
         addRestrictions(extract,parcelGeom,bbox,withGeometry,withImages,queryTopics,concernedTopics);
         // Themen
-        List<String> themeWithoutData=new ArrayList<String>();
+        List<TopicCode> themeWithoutData=new ArrayList<TopicCode>();
         themeWithoutData.addAll(requestedTopics);
-        for(String availableTopic:availableTopics) {
-            String mainTopic=stripSubTopic(availableTopic);
+        for(TopicCode availableTopic:availableTopics) {
+            TopicCode mainTopic=availableTopic.getMainTopic();
             if(requestedTopics.contains(availableTopic)) {
                 themeWithoutData.remove(availableTopic);
             }else if(requestedTopics.contains(mainTopic)) {
                 themeWithoutData.remove(mainTopic);
             }
         }
-        List<String> notConcernedTopics=new ArrayList<String>();
+        List<TopicCode> notConcernedTopics=new ArrayList<TopicCode>();
         notConcernedTopics.addAll(availableTopics);
-        for(String concernedTopic:concernedTopics) {
+        for(TopicCode concernedTopic:concernedTopics) {
             if(availableTopics.contains(concernedTopic)) {
                 notConcernedTopics.remove(concernedTopic);
             }
@@ -801,11 +750,11 @@ public class OerebController {
         
         return polygon;
     }
-    public void setThemes(final List<ThemeType> themes, List<String> topicCodes) {
-        for(String topicCode:topicCodes) {
+    public void setThemes(final List<ThemeType> themes, List<TopicCode> topicCodes) {
+        for(TopicCode topicCode:topicCodes) {
             ThemeType themeEle1=new ThemeType();
-            themeEle1.setCode(mapTopicCodeFromDataToExtract(topicCode));
-            themeEle1.setText(getTopicText(topicCode));
+            themeEle1.setCode(mapTopicCodeFromDataToExtract(topicCode.getCode()));
+            themeEle1.setText(getTopicText(topicCode.getCode()));
             ThemeType themeEle = themeEle1;
             themes.add(themeEle);
         }
@@ -824,7 +773,7 @@ public class OerebController {
     }
 
     private void addRestrictions(ExtractType extract, Geometry parcelGeom,Envelope bbox,boolean withGeometry, boolean withImages,
-            List<String> queryTopics, List<String> concernedTopicsList) {
+            List<TopicCode> queryTopics, List<TopicCode> concernedTopicsList) {
         // select schnitt parcelGeom/oerebGeom where restritctionTopic in queryTopic
         WKBWriter geomEncoder=new WKBWriter(2,ByteOrderValues.BIG_ENDIAN);
         PrecisionModel precisionModel=new PrecisionModel(1000.0);
@@ -866,7 +815,7 @@ public class OerebController {
         " INNER JOIN "+getSchema()+".oerbkrmvs_v1_1vorschriften_amt as ga ON g.zustaendigestelle = ga.t_id"+
         " WHERE (ST_DWithin(ST_GeomFromWKB(:geom,2056),flaeche_lv95,0.1) OR ST_DWithin(ST_GeomFromWKB(:geom,2056),linie_lv95,0.1) OR ST_DWithin(ST_GeomFromWKB(:geom,2056),punkt_lv95,0.1)) "
         + "AND (thema in (:topics) OR subthema in (:topics) or weiteresthema in (:topics))";
-        Set<String> concernedTopics=new HashSet<String>();
+        Set<TopicCode> concernedTopics=new HashSet<TopicCode>();
         Map<Long,RestrictionOnLandownershipType> restrictions=new HashMap<Long,RestrictionOnLandownershipType>();
         Map<Long,Integer> restrictionsPointCount=new HashMap<Long,Integer>();
         Map<Long,Double> restrictionsLengthShare=new HashMap<Long,Double>();
@@ -876,9 +825,12 @@ public class OerebController {
         Map<Long,List<LegendEntryType>> legends=new HashMap<Long,List<LegendEntryType>>();
         Map<Long,Set<QualifiedCode>> otherLegendCodesPerRestriction=new HashMap<Long,Set<QualifiedCode>>();
         Map<Long,Set<QualifiedCode>> concernedCodesPerRestriction=new HashMap<Long,Set<QualifiedCode>>();
-        //final String[] queryTopicsArray = queryTopics.toArray(new String[queryTopics.size()]);
+        ArrayList<String> queryTopicCodes = new ArrayList<String>();
+        for(TopicCode topicCode:queryTopics) {
+            queryTopicCodes.add(topicCode.getCode());
+        }
         MapSqlParameterSource parameters = new MapSqlParameterSource();
-        parameters.addValue("topics", queryTopics);
+        parameters.addValue("topics", queryTopicCodes);
         parameters.addValue("geom", filterGeom);
         jdbcParamTemplate.query(sqlStmt, parameters,new ResultSetExtractor<Object>() {
 
@@ -907,7 +859,7 @@ public class OerebController {
                         String weiteresThema=rs.getString("weiteresthema");
 
                         String topic=rs.getString("thema");
-                        String qtopic=getQualifiedThemeCode(topic,subThema,weiteresThema);
+                        TopicCode qtopic=new TopicCode(topic,subThema,weiteresThema);
                         if(!concernedTopics.contains(qtopic)) {
                             concernedTopics.add(qtopic);
                         }
@@ -917,7 +869,7 @@ public class OerebController {
                         }else {
                             themeEle1.setCode(mapTopicCodeFromDataToExtract(topic));
                         }
-                        themeEle1.setText(getTopicText(qtopic));
+                        themeEle1.setText(getTopicText(qtopic.getCode()));
                         ThemeType themeEle = themeEle1;
                         rest.setTheme(themeEle);
                         rest.setSubTheme(subThema);
@@ -1230,17 +1182,17 @@ public class OerebController {
         concernedTopicsList.addAll(concernedTopics);
     }
     protected String mapTopicCodeFromDataToExtract(String topic) {
-        for(int i=0;i<FEDERAL_TOPICS_DATA.length;i++) {
-            if(topic.equals(FEDERAL_TOPICS_DATA[i])) {
-                return FEDERAL_TOPICS_EXTRACT[i];
+        for(int i=0;i<TopicCode.FEDERAL_TOPICS_DATA.length;i++) {
+            if(topic.equals(TopicCode.FEDERAL_TOPICS_DATA[i])) {
+                return TopicCode.FEDERAL_TOPICS_EXTRACT[i];
             }
         }
         return topic;
     }
     private String mapTopicCodeFromExtractToData(String topic) {
-        for(int i=0;i<FEDERAL_TOPICS_EXTRACT.length;i++) {
-            if(topic.equals(FEDERAL_TOPICS_EXTRACT[i])) {
-                return FEDERAL_TOPICS_DATA[i];
+        for(int i=0;i<TopicCode.FEDERAL_TOPICS_EXTRACT.length;i++) {
+            if(topic.equals(TopicCode.FEDERAL_TOPICS_EXTRACT[i])) {
+                return TopicCode.FEDERAL_TOPICS_DATA[i];
             }
         }
         return topic;
@@ -1484,27 +1436,52 @@ public class OerebController {
 
 
 
-    private List<String> parseTopics(String requestedTopicsAsText) {
+    private List<TopicCode> parseTopics(String requestedTopicsAsText) {
         if(requestedTopicsAsText==null || requestedTopicsAsText.length()==0) {
             requestedTopicsAsText="ALL";
         }
-        java.util.Set<String> ret=new java.util.HashSet<String>();
+        java.util.Set<TopicCode> ret=new java.util.HashSet<TopicCode>();
         String topicsx[]=requestedTopicsAsText.split(";");
         for(String topic:topicsx) {
             if(topic.equals("ALL_FEDERAL") || topic.equals("ALL")) {
-                ret.addAll(Arrays.asList(FEDERAL_TOPICS_DATA));
+                for(String fedTopic:TopicCode.FEDERAL_TOPICS_DATA) {
+                    ret.add(new TopicCode(fedTopic,null,null));
+                }
                 if(topic.equals("ALL")) {
-                    java.util.List<String> baseDataList=jdbcTemplate.queryForList(
-                            "SELECT othercode FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_THEMATXT,String.class);
-                    for(String extTopic:baseDataList) {
-                        ret.add(extTopic);
-                    }
+                    jdbcTemplate.query(
+                            "SELECT acode,othercode FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_THEMATXT,new RowCallbackHandler() {
+                                @Override
+                                public void processRow(ResultSet rs) throws SQLException {
+                                    String code=rs.getString("acode");
+                                    String othercode=rs.getString("othercode");
+                                    if(code.equals(TopicCode.WEITERES_THEMA)) {
+                                        ret.add(new TopicCode(code,null,othercode));
+                                    }else {
+                                        ret.add(new TopicCode(code,othercode,null));
+                                    }
+                                }
+                            });
                 }
             }else {
-                ret.add(mapTopicCodeFromExtractToData(topic));
+                String fedCode=mapTopicCodeFromExtractToData(topic);
+                if(!fedCode.equals(topic)) {
+                    ret.add(new TopicCode(fedCode,null,null));
+                }else {
+                    try {
+                        String code=jdbcTemplate.queryForObject(
+                                "SELECT acode FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_THEMATXT+" WHERE othercode=?",String.class,topic);
+                        if(code.equals(TopicCode.WEITERES_THEMA)) {
+                            ret.add(new TopicCode(code,null,topic));
+                        }else {
+                            ret.add(new TopicCode(code,topic,null));
+                        }
+                    }catch(EmptyResultDataAccessException ex) {
+                        logger.error("unknown topic <{}> requested; ignored",topic);
+                    }
+                }
             }
         }
-        return new ArrayList<String>(ret);
+        return new ArrayList<TopicCode>(ret);
     }
 
     private LocalisedTextType getTopicText(String code) {
@@ -1528,8 +1505,25 @@ public class OerebController {
         return ret;
     }
 
-    private List<String> getTopicsOfMunicipality(int bfsNr) {
-        List<String> ret=jdbcTemplate.queryForList("SELECT avalue from "+getSchema()+"."+TABLE_OEREB_EXTRACTANNEX_V1_0_CODE+" as c JOIN "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_MUNICIPALITYWITHPLRC+" as m On c.oerb_xtnx_vpltywthplrc_themes=m.t_id WHERE m.municipality=?",String.class,bfsNr);
+    private List<TopicCode> getTopicsOfMunicipality(int bfsNr) {
+        List<TopicCode> ret=new ArrayList<TopicCode>();
+        jdbcTemplate.query("SELECT t.acode,c.avalue from "+getSchema()+"."+TABLE_OEREB_EXTRACTANNEX_V1_0_CODE+" as c"
+                + " JOIN "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_MUNICIPALITYWITHPLRC+" as m On c.oerb_xtnx_vpltywthplrc_themes=m.t_id"
+                + " LEFT JOIN "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_THEMATXT+" as t On t.othercode=c.avalue"
+                        + " WHERE m.municipality=?",new RowCallbackHandler() {
+                            @Override
+                            public void processRow(ResultSet rs) throws SQLException {
+                                String code=rs.getString("acode");
+                                String othercode=rs.getString("avalue");
+                                if(code==null) {
+                                    ret.add(new TopicCode(othercode,null,null));
+                                }else if(code.equals(TopicCode.WEITERES_THEMA)) {
+                                    ret.add(new TopicCode(code,null,othercode));
+                                }else {
+                                    ret.add(new TopicCode(code,othercode,null));
+                                }
+                            }
+                        },bfsNr);
         return ret;
     }
     private java.sql.Date getBasedatadateOfMunicipality(int bfsNr) {
@@ -1545,8 +1539,24 @@ public class OerebController {
         }
         return ret;
     }
-    private List<String> getAllTopicsOfThisCadastre() {
-        List<String> ret=jdbcTemplate.queryForList("SELECT DISTINCT avalue from "+getSchema()+"."+TABLE_OEREB_EXTRACTANNEX_V1_0_CODE,String.class);
+    private List<TopicCode> getAllTopicsOfThisCadastre() {
+        List<TopicCode> ret=new ArrayList<TopicCode>();
+        jdbcTemplate.query("SELECT DISTINCT t.acode,c.avalue from "+getSchema()+"."+TABLE_OEREB_EXTRACTANNEX_V1_0_CODE+" as c"
+                + " LEFT JOIN "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_THEMATXT+" as t On t.othercode=c.avalue"
+                        ,new RowCallbackHandler() {
+                            @Override
+                            public void processRow(ResultSet rs) throws SQLException {
+                                String code=rs.getString("acode");
+                                String othercode=rs.getString("avalue");
+                                if(code==null) {
+                                    ret.add(new TopicCode(othercode,null,null));
+                                }else if(code.equals(TopicCode.WEITERES_THEMA)) {
+                                    ret.add(new TopicCode(code,null,othercode));
+                                }else {
+                                    ret.add(new TopicCode(code,othercode,null));
+                                }
+                            }
+                        });
         return ret;
     }
 }

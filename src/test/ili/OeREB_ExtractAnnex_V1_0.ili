@@ -4,7 +4,7 @@ INTERLIS 2.3;
  */
 MODEL OeREB_ExtractAnnex_V1_0 (de)
 AT "mailto:ce@eisenhutinformatik.ch"
-VERSION "2019-09-02"  =
+VERSION "2019-09-13"  =
   IMPORTS OeREBKRM_V1_1,CHAdminCodes_V1,LocalisationCH_V1,CatalogueObjects_V1;
 
     DOMAIN
@@ -19,16 +19,16 @@ VERSION "2019-09-02"  =
           /** 
            * Kantonales Subthema zu einem Bundesthema:
            *   Code=Nutzungsplanung
-           *   otherCode=ch.so.Nutzungsplanung.CantonalBuildingLines
+           *   otherCode=ch.SO.CantonalBuildingLines
            *   In der Transferstruktur:
            *     Eigentumsbeschraenkung/Thema=Nutzungsplanung
-           *     Eigentumsbeschraenkung/SubThema=ch.so.Nutzungsplanung.CantonalBuildingLines
+           *     Eigentumsbeschraenkung/SubThema=ch.SO.CantonalBuildingLines
            * Kantonales Thema (kein Subthema zu einem Bundesthema): 
            *   Code=WeiteresThema
-           *   otherCode=ch.so.Einzelschutz
+           *   otherCode=ch.SO.Einzelschutz
            *   In der Transferstruktur:
            *     Eigentumsbeschraenkung/Thema=WeiteresThema
-           *     Eigentumsbeschraenkung/SubThema=ch.so.Einzelschutz
+           *     Eigentumsbeschraenkung/SubThema=ch.SO.Einzelschutz
            */
           otherCode : Code;
           MANDATORY CONSTRAINT Code!=#WeiteresThema OR DEFINED(otherCode);
@@ -51,9 +51,9 @@ VERSION "2019-09-02"  =
 		   * Bundesthema:
            *   value=Nutzungsplanung
            * Kantonales Subthema zu einem Bundesthema:
-           *   value=ch.so.Nutzungsplanung.CantonalBuildingLines
+           *   value=ch.SO.CantonalBuildingLines
            * Kantonales Thema (kein Subthema zu einem Bundesthema): 
-           *   value=ch.so.Einzelschutz
+           *   value=ch.SO.Einzelschutz
 		   */
 		  themes : BAG OF Code_;
 		  /** Stand der Grundlagedaten z.B. der AV
