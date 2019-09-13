@@ -391,7 +391,7 @@ public class OerebController {
                 });
         ret.getMunicipality().addAll(gemeinden);
         // Liste der vorhandenen FLAVOURs;
-        ret.getFlavour().add("reduced");
+        ret.getFlavour().add("REDUCED");
         // Liste der unterstuetzten Sprachen (2 stellige ISO Codes);
         ret.getLanguage().add("de");
         // Liste der unterstuetzten CRS.

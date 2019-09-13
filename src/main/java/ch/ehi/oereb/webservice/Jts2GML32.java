@@ -1,5 +1,7 @@
 package ch.ehi.oereb.webservice;
 
+import java.util.UUID;
+
 import ch.ehi.oereb.schemas.gml._3_2.*;
 
 public class Jts2GML32 {
@@ -10,12 +12,14 @@ public class Jts2GML32 {
             SurfaceMember surfaceMember=new SurfaceMember();
             surfaceMember.setValue(surfaceProperty);
             MultiSurfaceTypeType multiSurface=new MultiSurfaceTypeType();
+            multiSurface.setId(createId());
             multiSurface.getSurfaceMember().add(surfaceMember);
             MultiSurfacePropertyTypeType ret=new MultiSurfacePropertyTypeType();
             ret.setMultiSurface(new MultiSurface(multiSurface));
             return ret;
         }else if(geometry instanceof com.vividsolutions.jts.geom.MultiPolygon) {
             MultiSurfaceTypeType multiSurface=new MultiSurfaceTypeType();
+            multiSurface.setId(createId());
             com.vividsolutions.jts.geom.MultiPolygon jtsMulti=(com.vividsolutions.jts.geom.MultiPolygon)geometry;
             for(int i=0;i<jtsMulti.getNumGeometries();i++) {
                 com.vividsolutions.jts.geom.Polygon jtsPoly=(com.vividsolutions.jts.geom.Polygon)jtsMulti.getGeometryN(i);
@@ -47,6 +51,7 @@ public class Jts2GML32 {
         exteriorRingProperty.setAbstractRing(ring);
         
         PolygonTypeType polygon=new PolygonTypeType();
+        polygon.setId(createId());
         polygon.setExterior(new Exterior(exteriorRingProperty));
         return new Polygon(polygon);
     }
@@ -58,6 +63,7 @@ public class Jts2GML32 {
     
     public LineString createLineString(com.vividsolutions.jts.geom.LineString jtsLineString) {
         LineStringTypeType line=new LineStringTypeType();
+        line.setId(createId());
         for(com.vividsolutions.jts.geom.Coordinate jtsCoord:jtsLineString.getCoordinates()) {
             Pos pos = createPos(jtsCoord);
             line.getPosOrPointPropertyOrPointRep().add(pos);
@@ -71,6 +77,9 @@ public class Jts2GML32 {
             ring.getPosOrPointPropertyOrPointRep().add(pos);
         }
         return new LinearRing(ring);
+    }
+    private String createId() {
+        return "_"+UUID.randomUUID().toString();
     }
     public Pos createPos(com.vividsolutions.jts.geom.Coordinate jtsCoord) {
         DirectPositionTypeType directPos = createDirectPositionType(jtsCoord);
@@ -86,6 +95,7 @@ public class Jts2GML32 {
     public PointPropertyTypeType createPointPropertyType(com.vividsolutions.jts.geom.Coordinate jtsCoord) {
         Pos pos=createPos(jtsCoord);
         PointTypeType point=new PointTypeType();
+        point.setId(createId());
         point.setPos(pos);
         Point pointEle=new Point(point);
         PointPropertyTypeType ret=new PointPropertyTypeType();
