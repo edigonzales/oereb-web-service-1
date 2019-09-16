@@ -1014,7 +1014,7 @@ public class OerebController {
                                 +" INNER JOIN "+getSchema()+"."+TABLE_OERBKRMVS_V1_1VORSCHRIFTEN_AMT+" as wa ON wd.zustaendigestelle = wa.t_id"
                                 +" INNER JOIN docs as s ON s.t_id = w.ursprung WHERE NOT cycle"  
                                 +") SELECT * FROM docs";
-                        logger.trace(stmt);
+
                         List<DocumentBaseType> documents = rest.getLegalProvisions();
                         HashMap<Long,DocumentType> documentMap = new HashMap<Long,DocumentType>();
 
