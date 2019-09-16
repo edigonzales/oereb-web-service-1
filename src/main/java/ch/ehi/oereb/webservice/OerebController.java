@@ -121,6 +121,9 @@ import ch.so.agi.oereb.pdf4oereb.Locale;
 @Controller
 public class OerebController {
     
+    private static final String TABLE_OERBKRMVS_V1_1VORSCHRIFTEN_AMT = "oerbkrmvs_v1_1vorschriften_amt";
+    private static final String TABLE_OERBKRMFR_V1_1TRANSFERSTRUKTUR_DARSTELLUNGSDIENST = "oerbkrmfr_v1_1transferstruktur_darstellungsdienst";
+    private static final String TABLE_OERBKRMFR_V1_1TRANSFERSTRUKTUR_EIGENTUMSBESCHRAENKUNG = "oerbkrmfr_v1_1transferstruktur_eigentumsbeschraenkung";
     private static final String TABLE_OERB_XTNX_V1_0ANNEX_MAPLAYERING = "oerb_xtnx_v1_0annex_maplayering";
     private static final String TABLE_OEREBKRM_V1_1_LOCALISEDURI = "oerebkrm_v1_1_localiseduri";
     private static final String TABLE_OEREBKRM_V1_1_MULTILINGUALURI = "oerebkrm_v1_1_multilingualuri";
@@ -809,10 +812,10 @@ public class OerebController {
         "ST_AsBinary(g.flaeche_lv95) as flaeche," + 
         "g.metadatengeobasisdaten" + 
         " FROM "+getSchema()+".oerbkrmfr_v1_1transferstruktur_geometrie as g " + 
-        " INNER JOIN "+getSchema()+".oerbkrmfr_v1_1transferstruktur_eigentumsbeschraenkung as e ON g.eigentumsbeschraenkung = e.t_id" + 
-        " INNER JOIN "+getSchema()+".oerbkrmfr_v1_1transferstruktur_darstellungsdienst as d ON e.darstellungsdienst = d.t_id" + 
-        " INNER JOIN "+getSchema()+".oerbkrmvs_v1_1vorschriften_amt as ea ON e.zustaendigestelle = ea.t_id"+
-        " INNER JOIN "+getSchema()+".oerbkrmvs_v1_1vorschriften_amt as ga ON g.zustaendigestelle = ga.t_id"+
+        " INNER JOIN "+getSchema()+"."+TABLE_OERBKRMFR_V1_1TRANSFERSTRUKTUR_EIGENTUMSBESCHRAENKUNG+" as e ON g.eigentumsbeschraenkung = e.t_id" + 
+        " INNER JOIN "+getSchema()+"."+TABLE_OERBKRMFR_V1_1TRANSFERSTRUKTUR_DARSTELLUNGSDIENST+" as d ON e.darstellungsdienst = d.t_id" + 
+        " INNER JOIN "+getSchema()+"."+TABLE_OERBKRMVS_V1_1VORSCHRIFTEN_AMT+" as ea ON e.zustaendigestelle = ea.t_id"+
+        " INNER JOIN "+getSchema()+"."+TABLE_OERBKRMVS_V1_1VORSCHRIFTEN_AMT+" as ga ON g.zustaendigestelle = ga.t_id"+
         " WHERE (ST_DWithin(ST_GeomFromWKB(:geom,2056),flaeche_lv95,0.1) OR ST_DWithin(ST_GeomFromWKB(:geom,2056),linie_lv95,0.1) OR ST_DWithin(ST_GeomFromWKB(:geom,2056),punkt_lv95,0.1)) "
         + "AND (thema in (:topics) OR subthema in (:topics) or weiteresthema in (:topics))";
         Set<TopicCode> concernedTopics=new HashSet<TopicCode>();
@@ -979,12 +982,15 @@ public class OerebController {
                                 +",ed.gemeinde"
                                 +",ed.dokument"
                                 +",docuri1.docuri"
-                                +",ed.zustaendigestelle"
+                                +",ea.aname_de as a_aname_de" 
+                                +",ea.amtimweb as a_amtimweb" 
+                                +",ea.auid as a_auid"
                                 +",ed.rechtsstatus"
                                 +",ARRAY[ed.t_id] as path, false as cycle"
                                 
                                 + " from "+getSchema()+"."+TABLE_OERBKRMFR_V1_1TRANSFERSTRUKTUR_HINWEISVORSCHRIFT+" as h  inner join "+getSchema()+"."+TABLE_OERBKRMVS_V1_1VORSCHRIFTEN_DOKUMENT+" as ed on h.vorschrift_oerbkrmvs_v1_1vorschriften_dokument=ed.t_id"
                                 + "      INNER JOIN (SELECT "+TABLE_OEREBKRM_V1_1_MULTILINGUALURI+".oerbkrmvs_vrftn_dkment_textimweb as docid,"+TABLE_OEREBKRM_V1_1_LOCALISEDURI+".atext as docuri FROM  "+getSchema()+"."+TABLE_OEREBKRM_V1_1_MULTILINGUALURI+" INNER JOIN "+getSchema()+"."+TABLE_OEREBKRM_V1_1_LOCALISEDURI+" ON  "+TABLE_OEREBKRM_V1_1_LOCALISEDURI+".oerbkrm_v1__mltlngluri_localisedtext = "+TABLE_OEREBKRM_V1_1_MULTILINGUALURI+".t_id WHERE alanguage='de') as docuri1 ON docuri1.docid=ed.t_id"
+                                + "      INNER JOIN "+getSchema()+"."+TABLE_OERBKRMVS_V1_1VORSCHRIFTEN_AMT+" as ea ON ed.zustaendigestelle = ea.t_id"
                                 +"  where eigentumsbeschraenkung=?"
                                 +"    UNION ALL"  
                                 +"    select w.ursprung "
@@ -998,13 +1004,17 @@ public class OerebController {
                                 +",wd.gemeinde"
                                 +",wd.dokument"
                                 +",docuri2.docuri"
-                                +",wd.zustaendigestelle"
+                                +",wa.aname_de as a_aname_de" 
+                                +",wa.amtimweb as a_amtimweb" 
+                                +",wa.auid as a_auid"
                                 +",wd.rechtsstatus"
                                 +",path || wd.t_id as path, wd.t_id = ANY(path) as cycle"
                                 + " from "+getSchema()+"."+TABLE_OERBKRMVS_V1_1VORSCHRIFTEN_HINWEISWEITEREDOKUMENTE+" as w  inner join "+getSchema()+"."+TABLE_OERBKRMVS_V1_1VORSCHRIFTEN_DOKUMENT+" as wd on w.hinweis=wd.t_id"
                                 + "      INNER JOIN (SELECT "+TABLE_OEREBKRM_V1_1_MULTILINGUALURI+".oerbkrmvs_vrftn_dkment_textimweb as docid,"+TABLE_OEREBKRM_V1_1_LOCALISEDURI+".atext as docuri FROM  "+getSchema()+"."+TABLE_OEREBKRM_V1_1_MULTILINGUALURI+" INNER JOIN "+getSchema()+"."+TABLE_OEREBKRM_V1_1_LOCALISEDURI+" ON "+TABLE_OEREBKRM_V1_1_LOCALISEDURI+".oerbkrm_v1__mltlngluri_localisedtext = "+TABLE_OEREBKRM_V1_1_MULTILINGUALURI+".t_id WHERE alanguage='de') as docuri2 ON docuri2.docid=wd.t_id"
-                                +" INNER JOIN docs as s ON s.t_id = w.ursprung WHERE NOT cycle" + 
-                                ") SELECT * FROM docs";
+                                +" INNER JOIN "+getSchema()+"."+TABLE_OERBKRMVS_V1_1VORSCHRIFTEN_AMT+" as wa ON wd.zustaendigestelle = wa.t_id"
+                                +" INNER JOIN docs as s ON s.t_id = w.ursprung WHERE NOT cycle"  
+                                +") SELECT * FROM docs";
+                        logger.trace(stmt);
                         List<DocumentBaseType> documents = rest.getLegalProvisions();
                         HashMap<Long,DocumentType> documentMap = new HashMap<Long,DocumentType>();
 
@@ -1031,6 +1041,12 @@ public class OerebController {
                                 doc.setAbbreviation(createMultilingualTextType(rs.getString("abkuerzung_de")));
                                 doc.setOfficialNumber(rs.getString("offiziellenr"));
                                 doc.setTextAtWeb(createMultilinualUriType(rs.getString("docuri")));
+                                OfficeType zustaendigeStelle=new OfficeType();
+                                zustaendigeStelle.setName(createMultilingualTextType(rs.getString("a_aname_de")));
+                                zustaendigeStelle.setOfficeAtWeb(createWebReferenceType(rs.getString("a_amtimweb")));
+                                zustaendigeStelle.setUID(rs.getString("a_auid"));
+                                doc.setResponsibleOffice(zustaendigeStelle);
+                                
                                 documentMap.put(docid,doc);
                                 if(parentid==null) {
                                     documents.add(doc);
