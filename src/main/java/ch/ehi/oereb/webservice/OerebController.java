@@ -1449,6 +1449,10 @@ public class OerebController {
 
     private String getWmsUrl(Envelope bbox, String url) {
         final UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(url);
+        UriComponents uri=builder.build();
+        if(uri.getQueryParams().containsKey("SRS")) {
+            builder.replaceQueryParam("SRS","EPSG:2056");
+        }
         builder.replaceQueryParam("BBOX", bbox.getMinX()+","+bbox.getMinY()+","+bbox.getMaxX()+","+bbox.getMaxY());
         builder.replaceQueryParam("DPI", MAP_DPI);
         builder.replaceQueryParam("HEIGHT", MAP_HEIGHT_PIXEL);
