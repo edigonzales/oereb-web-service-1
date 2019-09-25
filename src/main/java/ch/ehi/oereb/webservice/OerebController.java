@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.UUID;
 
 import javax.xml.bind.JAXBElement;
@@ -419,6 +420,7 @@ public class OerebController {
         extract.setIsReduced(true);
         XMLGregorianCalendar today=null;
         try {
+            logger.info("timezone id {}",TimeZone.getDefault().getID());
             GregorianCalendar gdate=new GregorianCalendar();
             gdate.setTime(new java.util.Date());
             today = DatatypeFactory.newInstance().newXMLGregorianCalendar(gdate);
