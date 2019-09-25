@@ -47,12 +47,21 @@ public class Jts2GML32 {
         
         com.vividsolutions.jts.geom.LineString jtsLineString=geometry.getExteriorRing();
         LinearRing ring = createLinearRing(jtsLineString);
-        AbstractRingPropertyTypeType exteriorRingProperty = new AbstractRingPropertyTypeType();
-        exteriorRingProperty.setAbstractRing(ring);
+        AbstractRingPropertyTypeType ringProperty = new AbstractRingPropertyTypeType();
+        ringProperty.setAbstractRing(ring);
         
         PolygonTypeType polygon=new PolygonTypeType();
         polygon.setId(createId());
-        polygon.setExterior(new Exterior(exteriorRingProperty));
+        polygon.setExterior(new Exterior(ringProperty));
+        
+        int ringc=geometry.getNumInteriorRing();
+        for(int ringi=0;ringi<ringc;ringi++) {
+            jtsLineString=geometry.getInteriorRingN(ringi);
+            ring = createLinearRing(jtsLineString);
+            ringProperty = new AbstractRingPropertyTypeType();
+            ringProperty.setAbstractRing(ring);
+            polygon.getInterior().add(new Interior(ringProperty));
+        }
         return new Polygon(polygon);
     }
     public CurvePropertyTypeType convertCurve(com.vividsolutions.jts.geom.LineString jtsLine) {
