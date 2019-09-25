@@ -43,5 +43,9 @@ public class QualifiedCode {
             return false;
         return true;
     }
+    @Override
+    public String toString() {
+        return "{" + codespace + "}[" + code + "]";
+    }
 
 }

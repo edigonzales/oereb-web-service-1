@@ -825,8 +825,8 @@ public class OerebController {
         Map<Long,Double> restrictionsAreaShare=new HashMap<Long,Double>();
         Map<Long,Long> restriction2mapid=new HashMap<Long,Long>();
         Set<Long> concernedRestrictions=new HashSet<Long>();
-        Map<Long,List<LegendEntryType>> legends=new HashMap<Long,List<LegendEntryType>>();
-        Map<Long,Set<QualifiedCode>> otherLegendCodesPerRestriction=new HashMap<Long,Set<QualifiedCode>>();
+        Map<Long,List<LegendEntryType>> legendPerWms=new HashMap<Long,List<LegendEntryType>>();
+        Map<Long,Set<QualifiedCode>> otherLegendCodesPerMap=new HashMap<Long,Set<QualifiedCode>>();
         Map<Long,Set<QualifiedCode>> concernedCodesPerRestriction=new HashMap<Long,Set<QualifiedCode>>();
         ArrayList<String> queryTopicCodes = new ArrayList<String>();
         for(TopicCode topicCode:queryTopics) {
@@ -844,7 +844,7 @@ public class OerebController {
                     long e_id=rs.getLong("e_id");
                     long d_id=rs.getLong("d_id");
                     final String aussage_de = rs.getString("aussage_de");
-                    logger.info("g_id {} e_id {} aussage {} ",g_id,e_id,aussage_de);
+                    logger.info("g_id {} e_id {} d_id {} aussage {} ",g_id,e_id,d_id,aussage_de);
                     
                     RestrictionOnLandownershipType rest=restrictions.get(e_id);
                     if(rest==null) {
@@ -853,7 +853,6 @@ public class OerebController {
                         rest=localRest;
                         restrictions.put(e_id,rest);
                         restriction2mapid.put(e_id,d_id);
-                        otherLegendCodesPerRestriction.put(e_id, new HashSet<QualifiedCode>());
                         concernedCodesPerRestriction.put(e_id,new HashSet<QualifiedCode>());
                         
                         rest.setInformation(createMultilingualMTextType(aussage_de));
@@ -909,10 +908,14 @@ public class OerebController {
                         setMapBBOX(map,bbox);
                         
                         map.setLegendAtWeb(createWebReferenceType(rs.getString("legendeimweb")));
-                        List<LegendEntryType> legendEntries=legends.get(d_id);
+                        List<LegendEntryType> legendEntries=legendPerWms.get(d_id);
+                        // WMS not yet seen?
                         if(legendEntries==null){
+                            otherLegendCodesPerMap.put(d_id, new HashSet<QualifiedCode>());
+                            // collect legend entries
                             List<LegendEntryType> localLegendEntries=new ArrayList<LegendEntryType>();
                             legendEntries=localLegendEntries;
+                            legendPerWms.put(d_id,legendEntries);
                             String stmt="SELECT" + 
                                     "  symbol" + 
                                     "  ,legendetext_de" + 
@@ -950,9 +953,7 @@ public class OerebController {
                                     localLegendEntries.add(l);
                                 }
                             },d_id);
-                            legends.put(d_id,legendEntries);
                         }
-                        List<LegendEntryType> legend = map.getOtherLegend();
                         rest.setSymbol(getSymbol(legendEntries,typeCodelist,typeCode));
                         rest.setMap(map);
                         /*
@@ -1064,8 +1065,6 @@ public class OerebController {
 
                     }
                    
-                    Set<QualifiedCode> otherLegendCodes=otherLegendCodesPerRestriction.get(e_id);
-                    Set<QualifiedCode> concernedCodes=concernedCodesPerRestriction.get(e_id);
                     QualifiedCode thisCode=new QualifiedCode(rest.getTypeCodelist(),rest.getTypeCode());
                     
                     Polygon flaeche=null;
@@ -1103,11 +1102,16 @@ public class OerebController {
                         }
                         intersection=parcelGeom.intersection(punkt);
                     }
+                    
+                    Set<QualifiedCode> otherLegendCodes=otherLegendCodesPerMap.get(d_id);
+                    Set<QualifiedCode> concernedCodes=concernedCodesPerRestriction.get(e_id);
                     if(intersection.isEmpty()) {
                         if(!concernedCodes.contains(thisCode)) {
                             otherLegendCodes.add(thisCode);
+                            logger.debug("otherLegend {}",thisCode);
                         }
                     }else {
+                        logger.debug("concernedCode {}",thisCode);
                         concernedRestrictions.add(e_id);
                         concernedCodes.add(thisCode);
                         otherLegendCodes.remove(thisCode);
@@ -1182,10 +1186,12 @@ public class OerebController {
             }
             
             
-            long d_id=restriction2mapid.get(e_id);
             MapType map=rest.getMap();
-            Set<QualifiedCode> otherLegendCodes=otherLegendCodesPerRestriction.get(e_id);
-            List<LegendEntryType> legendEntries = legends.get(d_id);
+            long d_id=restriction2mapid.get(e_id);
+            List<LegendEntryType> legendEntries = legendPerWms.get(d_id);
+            logger.debug("d_id {} legendEntries.size() {}",d_id,legendEntries.size());
+            Set<QualifiedCode> otherLegendCodes=otherLegendCodesPerMap.get(d_id);
+            logger.debug("d_id {} otherLegendCodes.size() {}",d_id,otherLegendCodes.size());
             for(LegendEntryType entry:legendEntries) {
                 QualifiedCode otherCode=new QualifiedCode(entry.getTypeCodelist(),entry.getTypeCode());
                 if(otherLegendCodes.contains(otherCode)) {
