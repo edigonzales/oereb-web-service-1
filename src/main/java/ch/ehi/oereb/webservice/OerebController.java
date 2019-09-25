@@ -570,7 +570,7 @@ public class OerebController {
         MultilingualMTextType ret=new MultilingualMTextType();
         for(LanguageCodeType lang:LanguageCodeType.values()) {
             String txt=(String)baseData.get(prefix+"_"+lang.value());
-            if(txt!=null) {
+            if(txt!=null && txt.length()>0) {
                 LocalisedMTextType lTxt= new LocalisedMTextType();
                 lTxt.setLanguage(lang);
                 lTxt.setText(txt);
@@ -593,37 +593,55 @@ public class OerebController {
         return ret;
     }
     private MultilingualMTextType createMultilingualMTextType(String txt) {
-        MultilingualMTextType ret=new MultilingualMTextType();
         LocalisedMTextType lTxt = createLocalizedMText(txt);
+        if(lTxt==null) {
+            return null;
+        }
+        MultilingualMTextType ret=new MultilingualMTextType();
         ret.getLocalisedText().add(lTxt);
         return ret;
     }
     private MultilingualTextType createMultilingualTextType(String txt) {
-        MultilingualTextType ret=new MultilingualTextType();
         LocalisedTextType lTxt = createLocalizedText(txt);
+        if(lTxt==null) {
+            return null;
+        }
+        MultilingualTextType ret=new MultilingualTextType();
         ret.getLocalisedText().add(lTxt);
         return ret;
     }
     private MultilingualUriType createMultilinualUriType(String txt) {
-        MultilingualUriType ret=new MultilingualUriType();
         LocalisedUriType lTxt = createLocalizedUri(txt);
+        if(lTxt==null) {
+            return null;
+        }
+        MultilingualUriType ret=new MultilingualUriType();
         ret.getLocalisedText().add(lTxt);
         return ret;
     }
 
     private LocalisedMTextType createLocalizedMText(String txt) {
+        if(txt==null || txt.length()==0) {
+            return null;
+        }
         LocalisedMTextType lTxt= new LocalisedMTextType();
         lTxt.setLanguage(DE);
         lTxt.setText(txt);
         return lTxt;
     }
     private LocalisedTextType createLocalizedText(String txt) {
+        if(txt==null || txt.length()==0) {
+            return null;
+        }
         LocalisedTextType lTxt= new LocalisedTextType();
         lTxt.setLanguage(DE);
         lTxt.setText(txt);
         return lTxt;
     }
     private LocalisedUriType createLocalizedUri(String txt) {
+        if(txt==null || txt.length()==0) {
+            return null;
+        }
         LocalisedUriType lTxt= new LocalisedUriType();
         lTxt.setLanguage(DE);
         lTxt.setText(txt);
