@@ -347,10 +347,10 @@ public class OerebController {
         boolean withGeometry = true;
         boolean withImages = withImagesParam==null?false:withGeometry;
         if(format.equals(PARAM_FORMAT_PDF)) {
-            withImages = withGeometry;
+            withImages = true;
             withGeometry = true;
         }
-        Extract extract=createExtract(egrid,parcel,basedataDate,withGeometry,lang,topics,withImages);
+        Extract extract=createExtract(parcel.getEgrid(),parcel,basedataDate,withGeometry,lang,topics,withImages);
         
         GetExtractByIdResponseType response=new GetExtractByIdResponseType();
         response.setExtract(extract);
@@ -362,7 +362,7 @@ public class OerebController {
                 tmpFolder.mkdirs();
             }
             logger.info("tmpFolder {}",tmpFolder.getAbsolutePath());
-            java.io.File tmpExtractFile=new java.io.File(tmpFolder,egrid+".xml");
+            java.io.File tmpExtractFile=new java.io.File(tmpFolder,parcel.getEgrid()+".xml");
             marshaller.marshal(responseEle,new javax.xml.transform.stream.StreamResult(tmpExtractFile));
             try {
                 java.io.File pdfFile=extractXml2pdf.runXml2Pdf(tmpExtractFile.getAbsolutePath(), tmpFolder.getAbsolutePath(), Locale.DE);
@@ -395,12 +395,70 @@ public class OerebController {
         return new ResponseEntity<GetExtractByIdResponse>(responseEle,HttpStatus.OK);
     }    
 
-    @GetMapping("/extract/reduced/{format}/{egrid}")
-    public ResponseEntity<?>  getExtractWithoutGeometryByEgrid(@PathVariable String format,@PathVariable String geometry,@PathVariable String egrid,@RequestParam(value="LANG", required=false) String lang,@RequestParam(value="TOPICS", required=false) String topics,@RequestParam(value="WITHIMAGES", required=false) String withImages) {
-        if(!format.equals(PARAM_FORMAT_XML)) {
+    @GetMapping(value="/extract/reduced/{format}/{egrid}",consumes=MediaType.ALL_VALUE,produces = {MediaType.APPLICATION_PDF_VALUE,MediaType.APPLICATION_XML_VALUE})
+    public ResponseEntity<?>  getExtractWithoutGeometryByEgrid(@PathVariable String format,@PathVariable String egrid,@RequestParam(value="LANG", required=false) String lang,@RequestParam(value="TOPICS", required=false) String topics,@RequestParam(value="WITHIMAGES", required=false) String withImagesParam) {
+        if(!format.equals(PARAM_FORMAT_XML) && !format.equals(PARAM_FORMAT_PDF)) {
             throw new IllegalArgumentException("unsupported format <"+format+">");
         }
-        return null;
+        Grundstueck parcel=getParcelByEgrid(egrid);
+        if(parcel==null) {
+            return new ResponseEntity<Object>(HttpStatus.NO_CONTENT);
+        }
+        java.sql.Date basedataDate=getBasedatadateOfMunicipality(parcel.getBfsNr());
+        if(basedataDate==null) {
+            // non unlocked municipality
+            return new ResponseEntity<Object>(HttpStatus.NO_CONTENT);
+        }
+
+        boolean withGeometry = false;
+        boolean withImages = withImagesParam==null?false:withGeometry;
+        if(format.equals(PARAM_FORMAT_PDF)) {
+            withImages = true;
+            withGeometry = true;
+        }
+        Extract extract=createExtract(parcel.getEgrid(),parcel,basedataDate,withGeometry,lang,topics,withImages);
+        
+        GetExtractByIdResponseType response=new GetExtractByIdResponseType();
+        response.setExtract(extract);
+        GetExtractByIdResponse responseEle=new GetExtractByIdResponse(response);
+        
+        if(format.equals(PARAM_FORMAT_PDF)) {
+            java.io.File tmpFolder=new java.io.File(oerebTmpdir,"oerebws"+Thread.currentThread().getId());
+            if(!tmpFolder.exists()) {
+                tmpFolder.mkdirs();
+            }
+            logger.info("tmpFolder {}",tmpFolder.getAbsolutePath());
+            java.io.File tmpExtractFile=new java.io.File(tmpFolder,parcel.getEgrid()+".xml");
+            marshaller.marshal(responseEle,new javax.xml.transform.stream.StreamResult(tmpExtractFile));
+            try {
+                java.io.File pdfFile=extractXml2pdf.runXml2Pdf(tmpExtractFile.getAbsolutePath(), tmpFolder.getAbsolutePath(), Locale.DE);
+                String pdfFilename = pdfFile.getName();
+                /*
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_PDF);
+                headers.add("Access-Control-Allow-Origin", "*");
+                //headers.add("Access-Control-Allow-Methods", "GET, POST, PUT");
+                headers.add("Access-Control-Allow-Headers", "Content-Type");
+                headers.add("Content-Disposition", "filename=" + pdfFilename);
+                headers.add("Cache-Control", "no-cache, no-store, must-revalidate");
+                headers.add("Pragma", "no-cache");
+                headers.add("Expires", "0");
+                headers.setContentLength(pdfFile.length());
+                return new ResponseEntity<java.io.FileInputStream>(
+                        new java.io.FileInputStream(pdfFile), headers, HttpStatus.OK);                
+                */
+                java.io.InputStream is = new java.io.FileInputStream(pdfFile);
+                return ResponseEntity
+                        .ok().header("content-disposition", "attachment; filename=" + pdfFile.getName())
+                        .contentLength(pdfFile.length())
+                        .contentType(MediaType.APPLICATION_PDF).body(new InputStreamResource(is));                
+            } catch (ConverterException e) {
+                throw new IllegalStateException(e);
+            } catch (FileNotFoundException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        return new ResponseEntity<GetExtractByIdResponse>(responseEle,HttpStatus.OK);
     }    
     @GetMapping("/extract/reduced/{format}/{geometry}/{identdn}/{number}")
     public ResponseEntity<?>  getExtractWithGeometryByNumber(@PathVariable String format,@PathVariable String geometry,@PathVariable String identdn,@PathVariable String number,@RequestParam(value="LANG", required=false) String lang,@RequestParam(value="TOPICS", required=false) String topics,@RequestParam(value="WITHIMAGES", required=false) String withImages) {
@@ -992,7 +1050,9 @@ public class OerebController {
                         }
                         map.setLayerIndex(layerIndex);
                         map.setLayerOpacity(layerOpacity[0]);
-                        setMapBBOX(map,bbox);
+                        if(withGeometry) {
+                            setMapBBOX(map,bbox);
+                        }
                         
                         map.setLegendAtWeb(createWebReferenceType(rs.getString("legendeimweb")));
                         List<LegendEntryType> legendEntries=legendPerWms.get(d_id);
@@ -1221,10 +1281,10 @@ public class OerebController {
                                 areaSum=areaSum+area;
                             }
                             restrictionsAreaShare.put(e_id,areaSum);
-                            
-                            SurfacePropertyTypeType flaecheGml=jts2gml.convertSurface(flaeche);
-                            rGeom.setSurface(flaecheGml);
-                            
+                            if(withGeometry) {
+                                SurfacePropertyTypeType flaecheGml=jts2gml.convertSurface(flaeche);
+                                rGeom.setSurface(flaecheGml);
+                            }
                         }else if(linie!=null) {
                             double length=intersection.getLength();
                             Double lengthSum=restrictionsLengthShare.get(e_id);
@@ -1234,8 +1294,10 @@ public class OerebController {
                                 lengthSum=lengthSum+length;
                             }
                             restrictionsLengthShare.put(e_id,lengthSum);
-                            CurvePropertyTypeType linieGml=jts2gml.convertCurve(linie);
-                            rGeom.setLine(linieGml);
+                            if(withGeometry) {
+                                CurvePropertyTypeType linieGml=jts2gml.convertCurve(linie);
+                                rGeom.setLine(linieGml);
+                            }
                         }else if(punkt!=null) {
                             Integer pointSum=restrictionsPointCount.get(e_id);
                             if(pointSum==null) {
@@ -1244,8 +1306,10 @@ public class OerebController {
                                 pointSum=pointSum+1;
                             }
                             restrictionsPointCount.put(e_id,pointSum);
-                            PointPropertyTypeType pointGml=jts2gml.createPointPropertyType(punkt.getCoordinate());
-                            rGeom.setPoint(pointGml);
+                            if(withGeometry) {
+                                PointPropertyTypeType pointGml=jts2gml.createPointPropertyType(punkt.getCoordinate());
+                                rGeom.setPoint(pointGml);
+                            }
                         }else {
                             throw new IllegalStateException("no geometry");
                         }
@@ -1326,7 +1390,7 @@ public class OerebController {
         return null;
     }
 
-    protected void setMapBBOX(MapType map, Envelope bbox) {
+    private void setMapBBOX(MapType map, Envelope bbox) {
         map.setMaxNS95(jts2gml.createPointPropertyType(new Coordinate(bbox.getMaxX(),bbox.getMaxY())));
         map.setMinNS95(jts2gml.createPointPropertyType(new Coordinate(bbox.getMinX(),bbox.getMinY())));
     }
@@ -1393,9 +1457,10 @@ public class OerebController {
             throw new IllegalStateException("unknown gsArt");
         }
         //gs.setMetadataOfGeographicalBaseData(value);
-        // geometry must be set here (because xml2pdf requires it), even if is not request by service client
-        MultiSurfacePropertyTypeType geomGml=jts2gml.convertMultiSurface(parcel.getGeometrie());
-        gs.setLimit(geomGml);
+        if(withGeometry) {
+            MultiSurfacePropertyTypeType geomGml=jts2gml.convertMultiSurface(parcel.getGeometrie());
+            gs.setLimit(geomGml);
+        }
         
         
         {
@@ -1420,7 +1485,9 @@ public class OerebController {
             }
             planForLandregister.setLayerIndex(layerIndex);
             planForLandregister.setLayerOpacity(layerOpacity[0]);
-            setMapBBOX(planForLandregister,bbox);
+            if(withGeometry) {
+                setMapBBOX(planForLandregister,bbox);
+            }
         }
         {
             // Planausschnitt 174 * 99 mm
@@ -1444,7 +1511,9 @@ public class OerebController {
             }
             planForLandregisterMainPage.setLayerIndex(layerIndex);
             planForLandregisterMainPage.setLayerOpacity(layerOpacity[0]);
-            setMapBBOX(planForLandregisterMainPage,bbox);
+            if(withGeometry) {
+                setMapBBOX(planForLandregisterMainPage,bbox);
+            }
         }
         extract.setRealEstate(gs);
         
