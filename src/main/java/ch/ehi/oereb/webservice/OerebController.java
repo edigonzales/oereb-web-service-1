@@ -357,42 +357,45 @@ public class OerebController {
         GetExtractByIdResponse responseEle=new GetExtractByIdResponse(response);
         
         if(format.equals(PARAM_FORMAT_PDF)) {
-            java.io.File tmpFolder=new java.io.File(oerebTmpdir,"oerebws"+Thread.currentThread().getId());
-            if(!tmpFolder.exists()) {
-                tmpFolder.mkdirs();
-            }
-            logger.info("tmpFolder {}",tmpFolder.getAbsolutePath());
-            java.io.File tmpExtractFile=new java.io.File(tmpFolder,parcel.getEgrid()+".xml");
-            marshaller.marshal(responseEle,new javax.xml.transform.stream.StreamResult(tmpExtractFile));
-            try {
-                java.io.File pdfFile=extractXml2pdf.runXml2Pdf(tmpExtractFile.getAbsolutePath(), tmpFolder.getAbsolutePath(), Locale.DE);
-                String pdfFilename = pdfFile.getName();
-                /*
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.APPLICATION_PDF);
-                headers.add("Access-Control-Allow-Origin", "*");
-                //headers.add("Access-Control-Allow-Methods", "GET, POST, PUT");
-                headers.add("Access-Control-Allow-Headers", "Content-Type");
-                headers.add("Content-Disposition", "filename=" + pdfFilename);
-                headers.add("Cache-Control", "no-cache, no-store, must-revalidate");
-                headers.add("Pragma", "no-cache");
-                headers.add("Expires", "0");
-                headers.setContentLength(pdfFile.length());
-                return new ResponseEntity<java.io.FileInputStream>(
-                        new java.io.FileInputStream(pdfFile), headers, HttpStatus.OK);                
-                */
-                java.io.InputStream is = new java.io.FileInputStream(pdfFile);
-                return ResponseEntity
-                        .ok().header("content-disposition", "attachment; filename=" + pdfFile.getName())
-                        .contentLength(pdfFile.length())
-                        .contentType(MediaType.APPLICATION_PDF).body(new InputStreamResource(is));                
-            } catch (ConverterException e) {
-                throw new IllegalStateException(e);
-            } catch (FileNotFoundException e) {
-                throw new IllegalStateException(e);
-            }
+            return getExtractAsPdf(parcel, responseEle);
         }
         return new ResponseEntity<GetExtractByIdResponse>(responseEle,HttpStatus.OK);
+    }
+    private ResponseEntity<?> getExtractAsPdf(Grundstueck parcel, GetExtractByIdResponse responseEle) {
+        java.io.File tmpFolder=new java.io.File(oerebTmpdir,"oerebws"+Thread.currentThread().getId());
+        if(!tmpFolder.exists()) {
+            tmpFolder.mkdirs();
+        }
+        logger.info("tmpFolder {}",tmpFolder.getAbsolutePath());
+        java.io.File tmpExtractFile=new java.io.File(tmpFolder,parcel.getEgrid()+".xml");
+        marshaller.marshal(responseEle,new javax.xml.transform.stream.StreamResult(tmpExtractFile));
+        try {
+            java.io.File pdfFile=extractXml2pdf.runXml2Pdf(tmpExtractFile.getAbsolutePath(), tmpFolder.getAbsolutePath(), Locale.DE);
+            String pdfFilename = pdfFile.getName();
+            /*
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.add("Access-Control-Allow-Origin", "*");
+            //headers.add("Access-Control-Allow-Methods", "GET, POST, PUT");
+            headers.add("Access-Control-Allow-Headers", "Content-Type");
+            headers.add("Content-Disposition", "filename=" + pdfFilename);
+            headers.add("Cache-Control", "no-cache, no-store, must-revalidate");
+            headers.add("Pragma", "no-cache");
+            headers.add("Expires", "0");
+            headers.setContentLength(pdfFile.length());
+            return new ResponseEntity<java.io.FileInputStream>(
+                    new java.io.FileInputStream(pdfFile), headers, HttpStatus.OK);                
+            */
+            java.io.InputStream is = new java.io.FileInputStream(pdfFile);
+            return ResponseEntity
+                    .ok().header("content-disposition", "attachment; filename=" + pdfFile.getName())
+                    .contentLength(pdfFile.length())
+                    .contentType(MediaType.APPLICATION_PDF).body(new InputStreamResource(is));                
+        } catch (ConverterException e) {
+            throw new IllegalStateException(e);
+        } catch (FileNotFoundException e) {
+            throw new IllegalStateException(e);
+        }
     }    
 
     @GetMapping(value="/extract/reduced/{format}/{egrid}",consumes=MediaType.ALL_VALUE,produces = {MediaType.APPLICATION_PDF_VALUE,MediaType.APPLICATION_XML_VALUE})
@@ -423,49 +426,73 @@ public class OerebController {
         GetExtractByIdResponse responseEle=new GetExtractByIdResponse(response);
         
         if(format.equals(PARAM_FORMAT_PDF)) {
-            java.io.File tmpFolder=new java.io.File(oerebTmpdir,"oerebws"+Thread.currentThread().getId());
-            if(!tmpFolder.exists()) {
-                tmpFolder.mkdirs();
-            }
-            logger.info("tmpFolder {}",tmpFolder.getAbsolutePath());
-            java.io.File tmpExtractFile=new java.io.File(tmpFolder,parcel.getEgrid()+".xml");
-            marshaller.marshal(responseEle,new javax.xml.transform.stream.StreamResult(tmpExtractFile));
-            try {
-                java.io.File pdfFile=extractXml2pdf.runXml2Pdf(tmpExtractFile.getAbsolutePath(), tmpFolder.getAbsolutePath(), Locale.DE);
-                String pdfFilename = pdfFile.getName();
-                /*
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.APPLICATION_PDF);
-                headers.add("Access-Control-Allow-Origin", "*");
-                //headers.add("Access-Control-Allow-Methods", "GET, POST, PUT");
-                headers.add("Access-Control-Allow-Headers", "Content-Type");
-                headers.add("Content-Disposition", "filename=" + pdfFilename);
-                headers.add("Cache-Control", "no-cache, no-store, must-revalidate");
-                headers.add("Pragma", "no-cache");
-                headers.add("Expires", "0");
-                headers.setContentLength(pdfFile.length());
-                return new ResponseEntity<java.io.FileInputStream>(
-                        new java.io.FileInputStream(pdfFile), headers, HttpStatus.OK);                
-                */
-                java.io.InputStream is = new java.io.FileInputStream(pdfFile);
-                return ResponseEntity
-                        .ok().header("content-disposition", "attachment; filename=" + pdfFile.getName())
-                        .contentLength(pdfFile.length())
-                        .contentType(MediaType.APPLICATION_PDF).body(new InputStreamResource(is));                
-            } catch (ConverterException e) {
-                throw new IllegalStateException(e);
-            } catch (FileNotFoundException e) {
-                throw new IllegalStateException(e);
-            }
+            return getExtractAsPdf(parcel, responseEle);
         }
         return new ResponseEntity<GetExtractByIdResponse>(responseEle,HttpStatus.OK);
     }    
-    @GetMapping("/extract/reduced/{format}/{geometry}/{identdn}/{number}")
-    public ResponseEntity<?>  getExtractWithGeometryByNumber(@PathVariable String format,@PathVariable String geometry,@PathVariable String identdn,@PathVariable String number,@RequestParam(value="LANG", required=false) String lang,@RequestParam(value="TOPICS", required=false) String topics,@RequestParam(value="WITHIMAGES", required=false) String withImages) {
-        if(!format.equals(PARAM_FORMAT_XML)) {
+    @GetMapping(value="/extract/reduced/{format}/{geometry}/{identdn}/{number}",consumes=MediaType.ALL_VALUE,produces = {MediaType.APPLICATION_PDF_VALUE,MediaType.APPLICATION_XML_VALUE})
+    public ResponseEntity<?>  getExtractWithGeometryByNumber(@PathVariable String format,@PathVariable String geometry,@PathVariable String identdn,@PathVariable String number,@RequestParam(value="LANG", required=false) String lang,@RequestParam(value="TOPICS", required=false) String topics,@RequestParam(value="WITHIMAGES", required=false) String withImagesParam) {
+        if(!format.equals(PARAM_FORMAT_XML) && !format.equals(PARAM_FORMAT_PDF)) {
             throw new IllegalArgumentException("unsupported format <"+format+">");
         }
-        return null;
+        Grundstueck parcel=getParcelByNumber(identdn,number);
+        if(parcel==null) {
+            return new ResponseEntity<Object>(HttpStatus.NO_CONTENT);
+        }
+        java.sql.Date basedataDate=getBasedatadateOfMunicipality(parcel.getBfsNr());
+        if(basedataDate==null) {
+            // non unlocked municipality
+            return new ResponseEntity<Object>(HttpStatus.NO_CONTENT);
+        }
+
+        boolean withGeometry = true;
+        boolean withImages = withImagesParam==null?false:withGeometry;
+        if(format.equals(PARAM_FORMAT_PDF)) {
+            withImages = true;
+            withGeometry = true;
+        }
+        Extract extract=createExtract(parcel.getEgrid(),parcel,basedataDate,withGeometry,lang,topics,withImages);
+        
+        GetExtractByIdResponseType response=new GetExtractByIdResponseType();
+        response.setExtract(extract);
+        GetExtractByIdResponse responseEle=new GetExtractByIdResponse(response);
+        
+        if(format.equals(PARAM_FORMAT_PDF)) {
+            return getExtractAsPdf(parcel, responseEle);
+        }
+        return new ResponseEntity<GetExtractByIdResponse>(responseEle,HttpStatus.OK);
+    }    
+    @GetMapping(value="/extract/reduced/{format}/{identdn}/{number}",consumes=MediaType.ALL_VALUE,produces = {MediaType.APPLICATION_PDF_VALUE,MediaType.APPLICATION_XML_VALUE})
+    public ResponseEntity<?>  getExtractWithoutGeometryByNumber(@PathVariable String format,@PathVariable String identdn,@PathVariable String number,@RequestParam(value="LANG", required=false) String lang,@RequestParam(value="TOPICS", required=false) String topics,@RequestParam(value="WITHIMAGES", required=false) String withImagesParam) {
+        if(!format.equals(PARAM_FORMAT_XML) && !format.equals(PARAM_FORMAT_PDF)) {
+            throw new IllegalArgumentException("unsupported format <"+format+">");
+        }
+        Grundstueck parcel=getParcelByNumber(identdn,number);
+        if(parcel==null) {
+            return new ResponseEntity<Object>(HttpStatus.NO_CONTENT);
+        }
+        java.sql.Date basedataDate=getBasedatadateOfMunicipality(parcel.getBfsNr());
+        if(basedataDate==null) {
+            // non unlocked municipality
+            return new ResponseEntity<Object>(HttpStatus.NO_CONTENT);
+        }
+
+        boolean withGeometry = false;
+        boolean withImages = withImagesParam==null?false:withGeometry;
+        if(format.equals(PARAM_FORMAT_PDF)) {
+            withImages = true;
+            withGeometry = true;
+        }
+        Extract extract=createExtract(parcel.getEgrid(),parcel,basedataDate,withGeometry,lang,topics,withImages);
+        
+        GetExtractByIdResponseType response=new GetExtractByIdResponseType();
+        response.setExtract(extract);
+        GetExtractByIdResponse responseEle=new GetExtractByIdResponse(response);
+        
+        if(format.equals(PARAM_FORMAT_PDF)) {
+            return getExtractAsPdf(parcel, responseEle);
+        }
+        return new ResponseEntity<GetExtractByIdResponse>(responseEle,HttpStatus.OK);
     }    
     @GetMapping("/capabilities/{format}")
     public @ResponseBody  GetCapabilitiesResponse getCapabilities(@PathVariable String format) {
@@ -849,6 +876,93 @@ public class OerebController {
 
                     
                 },egrid);
+        if(gslist==null || gslist.isEmpty()) {
+            return null;
+        }
+        Polygon polygons[]=new Polygon[gslist.size()];
+        int i=0;
+        for(Grundstueck gs:gslist) {
+            polygons[i++]=(Polygon)gs.getGeometrie();
+        }
+        Geometry multiPolygon=geomFactory.createMultiPolygon(polygons);
+        Grundstueck gs=gslist.get(0);
+        gs.setGeometrie(multiPolygon);
+        
+        // grundbuchkreis
+        java.util.Map<String,Object> gbKreis=jdbcTemplate.queryForMap(
+                "SELECT aname,bfsnr FROM "+getSchema()+"."+TABLE_SO_G_V_0180822GRUNDBUCHKREISE_GRUNDBUCHKREIS+" WHERE nbident=?",gs.getNbident());
+        gs.setGbSubKreis((String)gbKreis.get("aname"));
+        gs.setBfsNr((Integer)gbKreis.get("bfsnr"));
+        
+        return gs;
+    }
+    private Grundstueck getParcelByNumber(String nbident,String nr) {
+        PrecisionModel precisionModel=new PrecisionModel(1000.0);
+        GeometryFactory geomFactory=new GeometryFactory(precisionModel);
+        List<Grundstueck> gslist=jdbcTemplate.query(
+                "SELECT"
+                + " ST_AsBinary(l.geometrie) as l_geometrie"
+                + ",ST_AsBinary(s.geometrie) as s_geometrie"
+                + ",ST_AsBinary(b.geometrie) as b_geometrie"
+                + ",egris_egrid"
+                + ",art"
+                + ",gesamteflaechenmass"
+                + ",l.flaechenmass as l_flaechenmass"
+                + ",s.flaechenmass as s_flaechenmass"
+                + ",b.flaechenmass as b_flaechenmass"
+                + " FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_GRUNDSTUECK+" g"
+                        +" LEFT JOIN "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_LIEGENSCHAFT+" l ON g.t_id=l.liegenschaft_von "
+                        +" LEFT JOIN "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_SELBSTRECHT+" s ON g.t_id=s.selbstrecht_von"
+                        +" LEFT JOIN "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_BERGWERK+" b ON g.t_id=b.bergwerk_von"
+                        +" WHERE g.nbident=? AND g.nummer=?", new RowMapper<Grundstueck>() {
+                    WKBReader decoder=new WKBReader(geomFactory);
+                    
+                    @Override
+                    public Grundstueck mapRow(ResultSet rs, int rowNum) throws SQLException {
+                        Geometry polygon=null;
+                        byte l_geometrie[]=rs.getBytes("l_geometrie");
+                        byte s_geometrie[]=rs.getBytes("s_geometrie");
+                        byte b_geometrie[]=rs.getBytes("b_geometrie");
+                        try {
+                            if(l_geometrie!=null) {
+                                polygon=decoder.read(l_geometrie);
+                            }else if(s_geometrie!=null) {
+                                polygon=decoder.read(s_geometrie);
+                            }else if(b_geometrie!=null) {
+                                polygon=decoder.read(b_geometrie);
+                            }else {
+                                throw new IllegalStateException("no geometrie");
+                            }
+                            if(polygon==null || polygon.isEmpty()) {
+                                return null;
+                            }
+                        } catch (ParseException e) {
+                            throw new IllegalStateException(e);
+                        }
+                        Grundstueck ret=new Grundstueck();
+                        ret.setGeometrie(polygon);
+                        ret.setEgrid(rs.getString("egris_egrid"));
+                        ret.setNummer(nr);
+                        ret.setNbident(nbident);
+                        ret.setArt(rs.getString("art"));
+                        int f=rs.getInt("gesamteflaechenmass");
+                        if(rs.wasNull()) {
+                            if(l_geometrie!=null) {
+                                f=rs.getInt("l_flaechenmass");
+                            }else if(s_geometrie!=null) {
+                                f=rs.getInt("s_flaechenmass");
+                            }else if(b_geometrie!=null) {
+                                f=rs.getInt("b_flaechenmass");
+                            }else {
+                                throw new IllegalStateException("no geometrie");
+                            }
+                        }
+                        ret.setFlaechenmas(f);
+                        return ret;
+                    }
+
+                    
+                },nbident,nr);
         if(gslist==null || gslist.isEmpty()) {
             return null;
         }
