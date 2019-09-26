@@ -580,12 +580,9 @@ public class OerebController {
         List<TopicCode> themeWithoutData=new ArrayList<TopicCode>();
         themeWithoutData.addAll(requestedTopics);
         for(TopicCode availableTopic:availableTopics) {
+            themeWithoutData.remove(availableTopic);
             TopicCode mainTopic=availableTopic.getMainTopic();
-            if(requestedTopics.contains(availableTopic)) {
-                themeWithoutData.remove(availableTopic);
-            }else if(requestedTopics.contains(mainTopic)) {
-                themeWithoutData.remove(mainTopic);
-            }
+            themeWithoutData.remove(mainTopic);
         }
         List<TopicCode> notConcernedTopics=new ArrayList<TopicCode>();
         notConcernedTopics.addAll(availableTopics);
