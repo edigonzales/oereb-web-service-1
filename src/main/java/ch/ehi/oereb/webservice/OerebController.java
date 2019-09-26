@@ -55,6 +55,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -122,6 +123,8 @@ import ch.so.agi.oereb.pdf4oereb.Locale;
 @Controller
 public class OerebController {
     
+    private static final String PARAM_FORMAT_PDF = "pdf";
+    private static final String PARAM_FORMAT_XML = "xml";
     private static final String TABLE_OERBKRMVS_V1_1VORSCHRIFTEN_AMT = "oerbkrmvs_v1_1vorschriften_amt";
     private static final String TABLE_OERBKRMFR_V1_1TRANSFERSTRUKTUR_DARSTELLUNGSDIENST = "oerbkrmfr_v1_1transferstruktur_darstellungsdienst";
     private static final String TABLE_OERBKRMFR_V1_1TRANSFERSTRUKTUR_EIGENTUMSBESCHRAENKUNG = "oerbkrmfr_v1_1transferstruktur_eigentumsbeschraenkung";
@@ -152,6 +155,8 @@ public class OerebController {
 
     protected static final String extractNS = "http://schemas.geo.admin.ch/V_D/OeREB/1.0/Extract";
     private static final LanguageCodeType DE = LanguageCodeType.DE;
+    private static final String LOGO_ENDPOINT = "logo";
+    private static final String SYMBOL_ENDPOINT = "symbol";
     
     private Logger logger=org.slf4j.LoggerFactory.getLogger(this.getClass());
     private Jts2GML32 jts2gml = new Jts2GML32();
@@ -191,6 +196,39 @@ public class OerebController {
         logger.info("env.dburl {}",dburl);
         return new ResponseEntity<String>("oereb web service",HttpStatus.OK);
     }
+    @GetMapping("/logo/{id}")
+    public ResponseEntity<byte[]>  getLogo(@PathVariable String id) {
+        logger.info("id {}",id);
+        byte image[]=getImageOrNull(id);
+        if(image==null) {
+            return new ResponseEntity<byte[]>(HttpStatus.NO_CONTENT);
+        }
+        return ResponseEntity
+                .ok().header("content-disposition", "attachment; filename=" + id+".png")
+                .contentLength(image.length)
+                .contentType(MediaType.IMAGE_PNG).body(image);                
+    }
+    @GetMapping("/symbol/{id}")
+    public ResponseEntity<byte[]>  getSymbol(@PathVariable String id) {
+        logger.info("id {}",id);
+        
+        String stmt="SELECT" + 
+                " symbol" + 
+                " FROM "+getSchema()+"."+TABLE_OERBKRMFR_V1_1TRANSFERSTRUKTUR_LEGENDEEINTRAG+" WHERE t_id=?";
+        java.util.List<byte[]> baseData=jdbcTemplate.queryForList(stmt,byte[].class,Long.parseLong(id));
+        byte image[]=null;
+        if(baseData!=null && baseData.size()==1) {
+            image=baseData.get(0);
+        }
+        
+        if(image==null) {
+            return new ResponseEntity<byte[]>(HttpStatus.NO_CONTENT);
+        }
+        return ResponseEntity
+                .ok().header("content-disposition", "attachment; filename=" + id+".png")
+                .contentLength(image.length)
+                .contentType(MediaType.IMAGE_PNG).body(image);                
+    }
     
     /* 
      * https://example.com/oereb/getegrid/xml/?XY=608000,228000
@@ -204,7 +242,7 @@ public class OerebController {
      */
     @GetMapping("/getegrid/{format}/{identdn}/{number}")
     public ResponseEntity<GetEGRIDResponse>  getEgridByNumber(@PathVariable String format, @PathVariable String identdn,@PathVariable String number) {
-        if(!format.equals("xml")) {
+        if(!format.equals(PARAM_FORMAT_XML)) {
             throw new IllegalArgumentException("unsupported format <"+format+">");
         }
         GetEGRIDResponseType ret= new GetEGRIDResponseType();
@@ -229,7 +267,7 @@ public class OerebController {
     }
     @GetMapping("/getegrid/{format}")
     public ResponseEntity<GetEGRIDResponse>  getEgridByXY(@PathVariable String format,@RequestParam(value="XY", required=false) String xy,@RequestParam(value="GNSS", required=false) String gnss) {
-        if(!format.equals("xml")) {
+        if(!format.equals(PARAM_FORMAT_XML)) {
             throw new IllegalArgumentException("unsupported format <"+format+">");
         }
         if(xy==null && gnss==null) {
@@ -292,8 +330,8 @@ public class OerebController {
      */
                 
     @GetMapping(value="/extract/reduced/{format}/{geometry}/{egrid}",consumes=MediaType.ALL_VALUE,produces = {MediaType.APPLICATION_PDF_VALUE,MediaType.APPLICATION_XML_VALUE})
-    public ResponseEntity<?>  getExtractWithGeometryByEgrid(@PathVariable String format,@PathVariable String geometry,@PathVariable String egrid,@RequestParam(value="LANG", required=false) String lang,@RequestParam(value="TOPICS", required=false) String topics,@RequestParam(value="WITHIMAGES", required=false) String withImages) {
-        if(!format.equals("xml") && !format.equals("pdf")) {
+    public ResponseEntity<?>  getExtractWithGeometryByEgrid(@PathVariable String format,@PathVariable String geometry,@PathVariable String egrid,@RequestParam(value="LANG", required=false) String lang,@RequestParam(value="TOPICS", required=false) String topics,@RequestParam(value="WITHIMAGES", required=false) String withImagesParam) {
+        if(!format.equals(PARAM_FORMAT_XML) && !format.equals(PARAM_FORMAT_PDF)) {
             throw new IllegalArgumentException("unsupported format <"+format+">");
         }
         Grundstueck parcel=getParcelByEgrid(egrid);
@@ -306,13 +344,19 @@ public class OerebController {
             return new ResponseEntity<Object>(HttpStatus.NO_CONTENT);
         }
 
-        Extract extract=createExtract(egrid,parcel,basedataDate,true,lang,topics,withImages==null?false:true);
+        boolean withGeometry = true;
+        boolean withImages = withImagesParam==null?false:withGeometry;
+        if(format.equals(PARAM_FORMAT_PDF)) {
+            withImages = withGeometry;
+            withGeometry = true;
+        }
+        Extract extract=createExtract(egrid,parcel,basedataDate,withGeometry,lang,topics,withImages);
         
         GetExtractByIdResponseType response=new GetExtractByIdResponseType();
         response.setExtract(extract);
         GetExtractByIdResponse responseEle=new GetExtractByIdResponse(response);
         
-        if(format.equals("pdf")) {
+        if(format.equals(PARAM_FORMAT_PDF)) {
             java.io.File tmpFolder=new java.io.File(oerebTmpdir,"oerebws"+Thread.currentThread().getId());
             if(!tmpFolder.exists()) {
                 tmpFolder.mkdirs();
@@ -353,21 +397,21 @@ public class OerebController {
 
     @GetMapping("/extract/reduced/{format}/{egrid}")
     public ResponseEntity<?>  getExtractWithoutGeometryByEgrid(@PathVariable String format,@PathVariable String geometry,@PathVariable String egrid,@RequestParam(value="LANG", required=false) String lang,@RequestParam(value="TOPICS", required=false) String topics,@RequestParam(value="WITHIMAGES", required=false) String withImages) {
-        if(!format.equals("xml")) {
+        if(!format.equals(PARAM_FORMAT_XML)) {
             throw new IllegalArgumentException("unsupported format <"+format+">");
         }
         return null;
     }    
     @GetMapping("/extract/reduced/{format}/{geometry}/{identdn}/{number}")
     public ResponseEntity<?>  getExtractWithGeometryByNumber(@PathVariable String format,@PathVariable String geometry,@PathVariable String identdn,@PathVariable String number,@RequestParam(value="LANG", required=false) String lang,@RequestParam(value="TOPICS", required=false) String topics,@RequestParam(value="WITHIMAGES", required=false) String withImages) {
-        if(!format.equals("xml")) {
+        if(!format.equals(PARAM_FORMAT_XML)) {
             throw new IllegalArgumentException("unsupported format <"+format+">");
         }
         return null;
     }    
     @GetMapping("/capabilities/{format}")
     public @ResponseBody  GetCapabilitiesResponse getCapabilities(@PathVariable String format) {
-        if(!format.equals("xml")) {
+        if(!format.equals(PARAM_FORMAT_XML)) {
             throw new IllegalArgumentException("unsupported format <"+format+">");
         }
         GetCapabilitiesResponseType ret=new GetCapabilitiesResponseType();
@@ -405,7 +449,7 @@ public class OerebController {
 
     @GetMapping("/versions/{format}")
     public @ResponseBody  GetVersionsResponse getVersions(@PathVariable String format) {
-        if(!format.equals("xml")) {
+        if(!format.equals(PARAM_FORMAT_XML)) {
             throw new IllegalArgumentException("unsupported format <"+format+">");
         }
         GetVersionsResponseType ret=new GetVersionsResponseType();
@@ -433,7 +477,7 @@ public class OerebController {
         // Grundstueck
         final Geometry parcelGeom = parcel.getGeometrie();
         Envelope bbox = getMapBBOX(parcelGeom);
-        setParcel(extract,egrid,parcel,bbox,withGeometry);
+        setParcel(extract,egrid,parcel,bbox,withGeometry,withImages);
         int bfsNr=extract.getRealEstate().getFosNr();
         // freigeschaltete Themen in der betroffenen Gemeinde
         List<TopicCode> availableTopics=getTopicsOfMunicipality(bfsNr);
@@ -470,10 +514,18 @@ public class OerebController {
         setThemes(extract.getNotConcernedTheme(), notConcernedTopics);
         setThemes(extract.getThemeWithoutData(), themeWithoutData);
         // Logos
-        extract.setLogoPLRCadastre(getImage("ch.plr"));
-        extract.setFederalLogo(getImage("ch"));
-        extract.setCantonalLogo(getImage("ch."+extract.getRealEstate().getCanton().name().toLowerCase()));
-        extract.setMunicipalityLogo(getImage("ch."+extract.getRealEstate().getFosNr()));
+        if(withImages) {
+            extract.setLogoPLRCadastre(getImage("ch.plr"));
+            extract.setFederalLogo(getImage("ch"));
+            extract.setCantonalLogo(getImage("ch."+extract.getRealEstate().getCanton().name().toLowerCase()));
+            extract.setMunicipalityLogo(getImage("ch."+extract.getRealEstate().getFosNr()));
+        }else {
+            extract.setLogoPLRCadastreRef(getLogoRef("ch.plr"));
+            extract.setFederalLogoRef(getLogoRef("ch"));
+            extract.setCantonalLogoRef(getLogoRef("ch."+extract.getRealEstate().getCanton().name().toLowerCase()));
+            extract.setMunicipalityLogoRef(getLogoRef("ch."+extract.getRealEstate().getFosNr()));
+            
+        }
         // Text
 
         setBaseData(extract,basedataDate);
@@ -492,13 +544,26 @@ public class OerebController {
         return new Extract(extract);
     }
 
+    private String getSymbolRef(String id) {
+        return ServletUriComponentsBuilder.fromCurrentContextPath().pathSegment(SYMBOL_ENDPOINT).pathSegment(id).build().toUriString();
+    }
+    private String getLogoRef(String id) {
+        return ServletUriComponentsBuilder.fromCurrentContextPath().pathSegment(LOGO_ENDPOINT).pathSegment(id).build().toUriString();
+    }
     private byte[] getImage(String code) {
+        byte[] ret=getImageOrNull(code);
+        if(ret!=null) {
+            return ret;
+        }
+        return minimalImage;
+    }
+    private byte[] getImageOrNull(String code) {
         java.util.List<byte[]> baseData=jdbcTemplate.queryForList(
                 "SELECT logo FROM "+getSchema()+"."+TABLE_OERB_XTNX_V1_0ANNEX_LOGO+" WHERE acode=?",byte[].class,code);
         if(baseData!=null && baseData.size()==1) {
             return baseData.get(0);
         }
-        return minimalImage;
+        return null;
     }
 
     private void setOffice(OfficeType office) {
@@ -910,12 +975,14 @@ public class OerebController {
                         String wmsUrl=rs.getString("verweiswms");
                         wmsUrl = getWmsUrl(bbox, wmsUrl);
                         map.setReferenceWMS(wmsUrl);
-                        try {
-                            byte wmsImage[]=getWmsImage(wmsUrl);
-                            map.setImage(wmsImage);
-                        } catch (IOException | URISyntaxException e) {
-                            logger.error("failed to get wms image",e);
-                            map.setImage(minimalImage);
+                        if(withImages) {
+                            try {
+                                byte wmsImage[]=getWmsImage(wmsUrl);
+                                map.setImage(wmsImage);
+                            } catch (IOException | URISyntaxException e) {
+                                logger.error("failed to get wms image",e);
+                                map.setImage(minimalImage);
+                            }
                         }
                         double layerOpacity[]=new double[1];
                         Integer layerIndex=getLayerIndex(wmsUrl,layerOpacity);
@@ -937,7 +1004,8 @@ public class OerebController {
                             legendEntries=localLegendEntries;
                             legendPerWms.put(d_id,legendEntries);
                             String stmt="SELECT" + 
-                                    "  symbol" + 
+                                    "  t_id" + 
+                                    (withImages?" ,symbol":"") + 
                                     "  ,legendetext_de" + 
                                     "  ,artcode" + 
                                     "  ,artcodeliste" + 
@@ -967,14 +1035,22 @@ public class OerebController {
                                     ThemeType legendThemeEle = themeEle;
                                     l.setTheme(legendThemeEle);
                                     l.setSubTheme(rs.getString("subthema"));
-                                    l.setSymbol(rs.getBytes("symbol"));
+                                    if(withImages) {
+                                        l.setSymbol(rs.getBytes("symbol"));
+                                    }else {
+                                        l.setSymbolRef(getSymbolRef(rs.getString("t_id")));
+                                    }
                                     l.setTypeCode(l_code);
                                     l.setTypeCodelist(l_codelist);
                                     localLegendEntries.add(l);
                                 }
                             },d_id);
                         }
-                        rest.setSymbol(getSymbol(legendEntries,typeCodelist,typeCode));
+                        if(withImages) {
+                            rest.setSymbol(getSymbol(legendEntries,typeCodelist,typeCode).getSymbol());
+                        }else {
+                            rest.setSymbolRef(getSymbol(legendEntries,typeCodelist,typeCode).getSymbolRef());
+                        }
                         rest.setMap(map);
                         /*
                             WITH RECURSIVE search_graph(id, link, data, depth, path, cycle) AS (
@@ -1241,10 +1317,10 @@ public class OerebController {
     }
 
 
-    protected byte[] getSymbol(List<LegendEntryType> legendEntries, String typeCodelist, String typeCode) {
+    protected LegendEntryType getSymbol(List<LegendEntryType> legendEntries, String typeCodelist, String typeCode) {
         for(LegendEntryType entry:legendEntries) {
             if(typeCodelist.equals(entry.getTypeCodelist()) && typeCode.equals(entry.getTypeCode())) {
-                return entry.getSymbol();
+                return entry;
             }
         }
         return null;
@@ -1284,7 +1360,7 @@ public class OerebController {
         return null;
     }
 
-    private void setParcel(ExtractType extract, String egrid, Grundstueck parcel,Envelope bbox, boolean withGeometry) {
+    private void setParcel(ExtractType extract, String egrid, Grundstueck parcel,Envelope bbox, boolean withGeometry,boolean withImages) {
         WKBWriter geomEncoder=new WKBWriter(2,ByteOrderValues.BIG_ENDIAN);
         byte geom[]=geomEncoder.write(parcel.getGeometrie());
         
@@ -1328,11 +1404,13 @@ public class OerebController {
             String fixedWmsUrl = getWmsUrl(bbox, oerebPlanForLandregister);
             planForLandregister.setReferenceWMS(fixedWmsUrl);
             gs.setPlanForLandRegister(planForLandregister);
-            try {
-                planForLandregister.setImage(getWmsImage(fixedWmsUrl));
-            } catch (IOException | URISyntaxException e) {
-                logger.error("failed to get wms image",e);
-                planForLandregister.setImage(minimalImage);
+            if(withImages) {
+                try {
+                    planForLandregister.setImage(getWmsImage(fixedWmsUrl));
+                } catch (IOException | URISyntaxException e) {
+                    logger.error("failed to get wms image",e);
+                    planForLandregister.setImage(minimalImage);
+                }
             }
             double layerOpacity[]=new double[1];
             Integer layerIndex=getLayerIndex(oerebPlanForLandregister,layerOpacity);
@@ -1350,11 +1428,13 @@ public class OerebController {
             String fixedWmsUrl = getWmsUrl(bbox, oerebPlanForLandregisterMainPage);
             planForLandregisterMainPage.setReferenceWMS(fixedWmsUrl);
             gs.setPlanForLandRegisterMainPage(planForLandregisterMainPage);
-            try {
-                planForLandregisterMainPage.setImage(getWmsImage(fixedWmsUrl));
-            } catch (IOException | URISyntaxException e) {
-                logger.error("failed to get wms image",e);
-                planForLandregisterMainPage.setImage(minimalImage);
+            if(withImages) {
+                try {
+                    planForLandregisterMainPage.setImage(getWmsImage(fixedWmsUrl));
+                } catch (IOException | URISyntaxException e) {
+                    logger.error("failed to get wms image",e);
+                    planForLandregisterMainPage.setImage(minimalImage);
+                }
             }
             double layerOpacity[]=new double[1];
             Integer layerIndex=getLayerIndex(oerebPlanForLandregisterMainPage,layerOpacity);
