@@ -123,6 +123,10 @@ import ch.so.agi.oereb.pdf4oereb.Locale;
 @Controller
 public class OerebController {
     
+    private static final String TABLE_PLZOCH1LV95DPLZORTSCHAFT_PLZ6 = "plzoch1lv95dplzortschaft_plz6";
+    private static final String TABLE_DM01VCH24LV95DGEBAEUDEADRESSEN_GEBAEUDEEINGANG = "dm01vch24lv95dgebaeudeadressen_gebaeudeeingang";
+    private static final String TABLE_DM01VCH24LV95DGEBAEUDEADRESSEN_LOKALISATION = "dm01vch24lv95dgebaeudeadressen_lokalisation";
+    private static final String TABLE_DM01VCH24LV95DGEBAEUDEADRESSEN_LOKALISATIONSNAME = "dm01vch24lv95dgebaeudeadressen_lokalisationsname";
     private static final String PARAM_FORMAT_PDF = "pdf";
     private static final String PARAM_FORMAT_XML = "xml";
     private static final String TABLE_OERBKRMVS_V1_1VORSCHRIFTEN_AMT = "oerbkrmvs_v1_1vorschriften_amt";
@@ -240,7 +244,11 @@ public class OerebController {
      * ${baseurl}/getegrid/${FORMAT}/${POSTALCODE}/${LOCALISATION}/${NUMBER}
      * ${baseurl}/getegrid/${FORMAT}/?GNSS=${GNSS}
      */
-    @GetMapping("/getegrid/{format}/{identdn}/{number}")
+    // select ST_AsText(lage) from oerebtest.dm01vch24lv95dgebaeudeadressen_lokalisationsname as lname JOIN oerebtest.dm01vch24lv95dgebaeudeadressen_lokalisation AS lokn ON lokn.t_id=lname.benannte JOIN oerebtest.dm01vch24lv95dgebaeudeadressen_gebaeudeeingang as geb ON geb.gebaeudeeingang_von=lokn.t_id where lname.atext='Hauptstrasse' and geb.hausnummer is null 
+    // select  flaeche from oerebtest.plzoch1lv95dplzortschaft_plz6 where plz=3706 
+    // ON ST_Intersects(gebein.lage, parcels.geometrie)
+    // ON ST_Intersects(gebein.lage, plz.flaeche)
+    @GetMapping("/getegrid/{format}/{identdn:[a-zA-Z].{2,11}}/{number}")
     public ResponseEntity<GetEGRIDResponse>  getEgridByNumber(@PathVariable String format, @PathVariable String identdn,@PathVariable String number) {
         if(!format.equals(PARAM_FORMAT_XML)) {
             throw new IllegalArgumentException("unsupported format <"+format+">");
@@ -312,6 +320,92 @@ public class OerebController {
                     }
                     
                 },geom);
+        for(JAXBElement<String>[] gs:gsList) {
+            ret.getEgridAndNumberAndIdentDN().add(gs[0]);
+            ret.getEgridAndNumberAndIdentDN().add(gs[1]);
+            ret.getEgridAndNumberAndIdentDN().add(gs[2]);
+        }
+         return new ResponseEntity<GetEGRIDResponse>(new GetEGRIDResponse(ret),gsList.size()>0?HttpStatus.OK:HttpStatus.NO_CONTENT);
+    }
+    
+    // https://example.com/oereb/getegrid/json/3084/Lindenweg/50
+    // ${baseurl}/getegrid/${FORMAT}/${POSTALCODE}/${LOCALISATION}/${NUMBER}
+    @GetMapping("/getegrid/{format}/{postalcode:[0-9]{4,4}}/{localisation}/{number}")
+    public ResponseEntity<GetEGRIDResponse>  getEgridByAddress(@PathVariable String format, @PathVariable int postalcode,@PathVariable String localisation,@PathVariable String number) {
+        if(!format.equals(PARAM_FORMAT_XML)) {
+            throw new IllegalArgumentException("unsupported format <"+format+">");
+        }
+        logger.debug("postalcode {}",postalcode);
+        logger.debug("localisation {}",localisation);
+        logger.debug("number {}",number);
+        GetEGRIDResponseType ret= new GetEGRIDResponseType();
+        String stmt="SELECT DISTINCT egris_egrid,nummer,nbident FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_GRUNDSTUECK+" as g"
+                +" JOIN ("
+                + "(SELECT liegenschaft_von as von, geometrie FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_LIEGENSCHAFT
+                    +" UNION SELECT selbstrecht_von as von,  geometrie FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_SELBSTRECHT
+                    +" UNION SELECT bergwerk_von as von,     geometrie FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_BERGWERK+") as a "
+                            + " JOIN (select lage from (select lage from "+getSchema()+"."+TABLE_DM01VCH24LV95DGEBAEUDEADRESSEN_LOKALISATIONSNAME+" as lname " 
+                            + " JOIN "+getSchema()+"."+TABLE_DM01VCH24LV95DGEBAEUDEADRESSEN_LOKALISATION+" AS lokn ON lokn.t_id=lname.benannte "
+                            + " JOIN "+getSchema()+"."+TABLE_DM01VCH24LV95DGEBAEUDEADRESSEN_GEBAEUDEEINGANG+" as geb ON geb.gebaeudeeingang_von=lokn.t_id " 
+                            + " where (lname.atext=? or lname.kurztext=?)and geb.hausnummer=? " 
+                            + ") as adr "
+                            + " JOIN (select  flaeche from "+getSchema()+"."+TABLE_PLZOCH1LV95DPLZORTSCHAFT_PLZ6+" where plz=?) as plz ON ST_Intersects(adr.lage, plz.flaeche) " 
+                            + ") as ladr ON ST_Intersects(ladr.lage,a.geometrie)"
+            + ") as b ON b.von=g.t_id";
+        List<JAXBElement<String>[]> gsList=jdbcTemplate.query(
+                stmt
+                , new RowMapper<JAXBElement<String>[]>() {
+                    @Override
+                    public JAXBElement<String>[] mapRow(ResultSet rs, int rowNum) throws SQLException {
+                        JAXBElement<String> ret[]=new JAXBElement[3];
+                        ret[0]=new JAXBElement<String>(new QName(extractNS,"egrid"),String.class,rs.getString(1));
+                        ret[1]=new JAXBElement<String>(new QName(extractNS,"number"),String.class,rs.getString(2));
+                        ret[2]=new JAXBElement<String>(new QName(extractNS,"identDN"),String.class,rs.getString(3));
+                        return ret;
+                    }
+                    
+                },localisation,localisation,number,postalcode);
+        for(JAXBElement<String>[] gs:gsList) {
+            ret.getEgridAndNumberAndIdentDN().add(gs[0]);
+            ret.getEgridAndNumberAndIdentDN().add(gs[1]);
+            ret.getEgridAndNumberAndIdentDN().add(gs[2]);
+        }
+         return new ResponseEntity<GetEGRIDResponse>(new GetEGRIDResponse(ret),gsList.size()>0?HttpStatus.OK:HttpStatus.NO_CONTENT);
+    }
+    @GetMapping("/getegrid/{format}/{postalcode:[0-9]{4,4}}/{localisation}")
+    public ResponseEntity<GetEGRIDResponse>  getEgridByAddress(@PathVariable String format, @PathVariable int postalcode,@PathVariable String localisation) {
+        if(!format.equals(PARAM_FORMAT_XML)) {
+            throw new IllegalArgumentException("unsupported format <"+format+">");
+        }
+        logger.debug("postalcode {}",postalcode);
+        logger.debug("localisation {}",localisation);
+        GetEGRIDResponseType ret= new GetEGRIDResponseType();
+        String stmt="SELECT DISTINCT egris_egrid,nummer,nbident FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_GRUNDSTUECK+" as g"
+                +" JOIN ("
+                + "(SELECT liegenschaft_von as von, geometrie FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_LIEGENSCHAFT
+                    +" UNION SELECT selbstrecht_von as von,  geometrie FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_SELBSTRECHT
+                    +" UNION SELECT bergwerk_von as von,     geometrie FROM "+getSchema()+"."+TABLE_DM01VCH24LV95DLIEGENSCHAFTEN_BERGWERK+") as a "
+                            + " JOIN (select lage from (select lage from "+getSchema()+"."+TABLE_DM01VCH24LV95DGEBAEUDEADRESSEN_LOKALISATIONSNAME+" as lname " 
+                            + " JOIN "+getSchema()+"."+TABLE_DM01VCH24LV95DGEBAEUDEADRESSEN_LOKALISATION+" AS lokn ON lokn.t_id=lname.benannte "
+                            + " JOIN "+getSchema()+"."+TABLE_DM01VCH24LV95DGEBAEUDEADRESSEN_GEBAEUDEEINGANG+" as geb ON geb.gebaeudeeingang_von=lokn.t_id " 
+                            + " where (lname.atext=? or lname.kurztext=?)and geb.hausnummer is null " 
+                            + ") as adr "
+                            + " JOIN (select  flaeche from "+getSchema()+"."+TABLE_PLZOCH1LV95DPLZORTSCHAFT_PLZ6+" where plz=?) as plz ON ST_Intersects(adr.lage, plz.flaeche) " 
+                            + ") as ladr ON ST_Intersects(ladr.lage,a.geometrie)"
+            + ") as b ON b.von=g.t_id";
+        List<JAXBElement<String>[]> gsList=jdbcTemplate.query(
+                stmt
+                , new RowMapper<JAXBElement<String>[]>() {
+                    @Override
+                    public JAXBElement<String>[] mapRow(ResultSet rs, int rowNum) throws SQLException {
+                        JAXBElement<String> ret[]=new JAXBElement[3];
+                        ret[0]=new JAXBElement<String>(new QName(extractNS,"egrid"),String.class,rs.getString(1));
+                        ret[1]=new JAXBElement<String>(new QName(extractNS,"number"),String.class,rs.getString(2));
+                        ret[2]=new JAXBElement<String>(new QName(extractNS,"identDN"),String.class,rs.getString(3));
+                        return ret;
+                    }
+                    
+                },localisation,localisation,postalcode);
         for(JAXBElement<String>[] gs:gsList) {
             ret.getEgridAndNumberAndIdentDN().add(gs[0]);
             ret.getEgridAndNumberAndIdentDN().add(gs[1]);
