@@ -980,10 +980,14 @@ public class OerebController {
         gs.setGeometrie(multiPolygon);
         
         // grundbuchkreis
-        java.util.Map<String,Object> gbKreis=jdbcTemplate.queryForMap(
-                "SELECT aname,bfsnr FROM "+getSchema()+"."+TABLE_SO_G_V_0180822GRUNDBUCHKREISE_GRUNDBUCHKREIS+" WHERE nbident=?",gs.getNbident());
-        gs.setGbSubKreis((String)gbKreis.get("aname"));
-        gs.setBfsNr((Integer)gbKreis.get("bfsnr"));
+        try {
+            java.util.Map<String,Object> gbKreis=jdbcTemplate.queryForMap(
+                    "SELECT aname,bfsnr FROM "+getSchema()+"."+TABLE_SO_G_V_0180822GRUNDBUCHKREISE_GRUNDBUCHKREIS+" WHERE nbident=?",gs.getNbident());
+            gs.setGbSubKreis((String)gbKreis.get("aname"));
+            gs.setBfsNr((Integer)gbKreis.get("bfsnr"));
+        }catch(EmptyResultDataAccessException ex) {
+            logger.warn("no gbkreis for nbident {}",gs.getNbident());
+        }
         
         return gs;
     }
@@ -1067,10 +1071,14 @@ public class OerebController {
         gs.setGeometrie(multiPolygon);
         
         // grundbuchkreis
-        java.util.Map<String,Object> gbKreis=jdbcTemplate.queryForMap(
-                "SELECT aname,bfsnr FROM "+getSchema()+"."+TABLE_SO_G_V_0180822GRUNDBUCHKREISE_GRUNDBUCHKREIS+" WHERE nbident=?",gs.getNbident());
-        gs.setGbSubKreis((String)gbKreis.get("aname"));
-        gs.setBfsNr((Integer)gbKreis.get("bfsnr"));
+        try {
+            java.util.Map<String,Object> gbKreis=jdbcTemplate.queryForMap(
+                    "SELECT aname,bfsnr FROM "+getSchema()+"."+TABLE_SO_G_V_0180822GRUNDBUCHKREISE_GRUNDBUCHKREIS+" WHERE nbident=?",gs.getNbident());
+            gs.setGbSubKreis((String)gbKreis.get("aname"));
+            gs.setBfsNr((Integer)gbKreis.get("bfsnr"));
+        }catch(EmptyResultDataAccessException ex) {
+            logger.warn("no gbkreis for nbident {}",gs.getNbident());
+        }
         
         return gs;
     }
