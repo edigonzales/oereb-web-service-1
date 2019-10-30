@@ -1175,6 +1175,7 @@ public class OerebController {
         " WHERE (ST_DWithin(ST_GeomFromWKB(:geom,2056),flaeche_lv95,0.1) OR ST_DWithin(ST_GeomFromWKB(:geom,2056),linie_lv95,0.1) OR ST_DWithin(ST_GeomFromWKB(:geom,2056),punkt_lv95,0.1)) "
         + "AND (thema in (:topics) OR subthema in (:topics) or weiteresthema in (:topics))";
         Set<TopicCode> concernedTopics=new HashSet<TopicCode>();
+        Map<Long,TopicCode> restriction2topicCode=new HashMap<Long,TopicCode>();
         Map<Long,RestrictionOnLandownershipType> restrictions=new HashMap<Long,RestrictionOnLandownershipType>();
         Map<Long,Integer> restrictionsPointCount=new HashMap<Long,Integer>();
         Map<Long,Double> restrictionsLengthShare=new HashMap<Long,Double>();
@@ -1218,9 +1219,7 @@ public class OerebController {
 
                         String topic=rs.getString("thema");
                         TopicCode qtopic=new TopicCode(topic,subThema,weiteresThema);
-                        if(!concernedTopics.contains(qtopic)) {
-                            concernedTopics.add(qtopic);
-                        }
+                        restriction2topicCode.put(e_id, qtopic);
                         ThemeType themeEle1=new ThemeType();
                         if(weiteresThema!=null) {
                             themeEle1.setCode(weiteresThema);
@@ -1483,6 +1482,12 @@ public class OerebController {
                         logger.debug("concernedCode {}",thisCode);
                         concernedRestrictions.add(e_id);
                         concernedCodes.add(thisCode);
+                        
+                        TopicCode qtopic=restriction2topicCode.get(e_id);
+                        if(!concernedTopics.contains(qtopic)) {
+                            concernedTopics.add(qtopic);
+                        }
+                        
                         otherLegendCodes.remove(thisCode);
                         GeometryType rGeom=new GeometryType();
                         if(flaeche!=null) {
