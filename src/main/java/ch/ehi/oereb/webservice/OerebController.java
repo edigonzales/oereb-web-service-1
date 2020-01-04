@@ -1613,11 +1613,11 @@ public class OerebController {
         map.setMinNS95(jts2gml.createPointPropertyType(new Coordinate(bbox.getMinX(),bbox.getMinY())));
     }
     HashMap<String,LawstatusType> statusCodes=null;
-    private static final int MAP_DPI = 300;
+    private static int MAP_DPI;
     private static final int MAP_WIDTH_MM = 174;
-    private static final int MAP_WIDTH_PIXEL = (int) (MAP_DPI*MAP_WIDTH_MM/25.4);
+    private static int MAP_WIDTH_PIXEL;
     private static final int MAP_HEIGHT_MM = 99;
-    private static final int MAP_HEIGHT_PIXEL = (int) (MAP_DPI*MAP_HEIGHT_MM/25.4);
+    private static int MAP_HEIGHT_PIXEL;
     private LawstatusType mapLawstatus(String xtfTransferCode) {
         if(statusCodes==null) {
             statusCodes=new HashMap<String,LawstatusType>();
@@ -1825,6 +1825,7 @@ public class OerebController {
         builder.replaceQueryParam("BBOX", bbox.getMinX()+","+bbox.getMinY()+","+bbox.getMaxX()+","+bbox.getMaxY());
         builder.replaceQueryParam("DPI", MAP_DPI);
         builder.replaceQueryParam("HEIGHT", MAP_HEIGHT_PIXEL);
+        
         builder.replaceQueryParam("WIDTH", MAP_WIDTH_PIXEL);
         String fixedWmsUrl = builder.build().toUriString();
         return fixedWmsUrl;
@@ -1971,5 +1972,13 @@ public class OerebController {
                             }
                         });
         return ret;
+    }
+    
+    @Value("${oereb.dpi:300}")
+    public void setMapdpi(int dpi) {
+        MAP_DPI = dpi;
+        MAP_WIDTH_PIXEL = (int) (MAP_DPI*MAP_WIDTH_MM/25.4);
+        MAP_HEIGHT_PIXEL = (int) (MAP_DPI*MAP_HEIGHT_MM/25.4);
+
     }
 }
